@@ -239,30 +239,129 @@ function beep() {
 function initTimer(btn, label) {
   const pop = popover('timer-pop', btn, 'Timer de foco');
   const cfg = store.get('timer', { foco: 25, pausa: 5, longa: 15, ciclos: 0 });
+  if (cfg.lock === undefined) cfg.lock = true;
+  if (cfg.full === undefined) cfg.full = true;
   const MODES = { foco: 'Foco', pausa: 'Pausa curta', longa: 'Pausa longa' };
   let mode = 'foco', left = cfg.foco * 60, running = false, endAt = 0, tick = null;
+  // saídas durante o foco: quantas vezes e quanto tempo fora
+  let away = { n: 0, ms: 0, since: 0 };
+
+  const isLocked = () => !!cfg.lock && mode === 'foco' && running;
 
   const display = h('div', { class: 'timer-display' });
   const modeBtns = {};
   const modeRow = h('div', { class: 'seg' });
-  for (const k of Object.keys(MODES)) { modeBtns[k] = h('button', { onclick: () => setMode(k) }, MODES[k]); modeRow.append(modeBtns[k]); }
-  const startBtn = h('button', { class: 'btn primary', onclick: () => (running ? pause() : start()) }, 'Iniciar');
+  for (const k of Object.keys(MODES)) { modeBtns[k] = h('button', { onclick: () => (isLocked() ? askEnd() : setMode(k)) }, MODES[k]); modeRow.append(modeBtns[k]); }
+  const startBtn = h('button', { class: 'btn primary', onclick: () => (running ? (isLocked() ? askEnd() : pause()) : start()) }, 'Iniciar');
+  const resetBtn = h('button', { class: 'btn secondary', onclick: () => { if (isLocked()) return askEnd(); pause(); left = cfg[mode] * 60; draw(); } }, 'Zerar');
   const count = h('div', { class: 'hint' });
   const durInputs = Object.keys(MODES).map((k) => {
     const i = h('input', { class: 'input num', type: 'number', min: 1, max: 120, value: cfg[k] });
     i.onchange = () => { cfg[k] = Math.max(1, Math.min(120, Number(i.value) || cfg[k])); store.set('timer', cfg); if (mode === k && !running) { left = cfg[k] * 60; draw(); } };
     return h('label', { class: 'dur' }, MODES[k], i, 'min');
   });
+  const opt = (key, text) => {
+    const i = h('input', { type: 'checkbox' });
+    i.checked = !!cfg[key];
+    i.onchange = () => { cfg[key] = i.checked; store.set('timer', cfg); draw(); };
+    return { i, el: h('label', { class: 'check' }, i, h('span', {}, text)) };
+  };
+  const optLock = opt('lock', 'Travar a página durante o foco (só sai quando o tempo acabar ou você encerrar)');
+  const optFull = opt('full', 'Tela cheia com teclado travado (segure Esc para sair)');
+  const lockNote = h('div', { class: 'hint lock-note' });
+
+  // ---------- tela de bloqueio ----------
+  const gTime = h('div', { class: 'fg-time' });
+  const gTitle = h('h2', {});
+  const gMsg = h('p', {});
+  const gStats = h('p', { class: 'fg-stats' });
+  const backBtn = h('button', { class: 'btn primary', onclick: () => { hideGuard(); enterFull(); } }, 'Voltar ao foco');
+  const endBtn = h('button', { class: 'btn ghost', onclick: () => {
+    if (endBtn.dataset.arm) endFocus();
+    else { endBtn.dataset.arm = '1'; endBtn.textContent = 'Tem certeza? Clique de novo para encerrar'; }
+  } }, 'Encerrar foco');
+  const guard = h('div', { class: 'focus-guard', hidden: true, role: 'alertdialog', 'aria-modal': 'true' },
+    h('div', { class: 'fg-box' }, h('div', { class: 'fg-kicker' }, 'Modo foco'), gTime, gTitle, gMsg, gStats,
+      h('div', { class: 'btnrow center' }, backBtn, endBtn)));
+  document.body.append(guard);
+  const GUARD = {
+    back: ['Você saiu da página', 'O foco continua valendo. Volte e termine o ciclo.'],
+    fullscreen: ['A tela cheia foi fechada', 'O foco continua valendo. Volte para a tela cheia para continuar.'],
+    reload: ['Sessão de foco em andamento', 'Recarregar ou reabrir a página não encerra o foco.'],
+    end: ['Encerrar o foco antes do tempo?', 'Pausar, zerar ou trocar de modo encerra o ciclo de foco atual.'],
+  };
+  function showGuard(kind) {
+    const [t, m] = GUARD[kind];
+    gTitle.textContent = t; gMsg.textContent = m;
+    delete endBtn.dataset.arm; endBtn.textContent = 'Encerrar foco';
+    guard.hidden = false; pops.forEach((p) => p.close());
+    draw();
+  }
+  function hideGuard() { guard.hidden = true; }
+  function askEnd() { showGuard('end'); }
+
+  const saveSess = () => store.set('focusSession', { endAt, n: away.n, ms: away.ms });
+  const clearSess = () => store.set('focusSession', null);
+
+  async function enterFull() {
+    if (!isLocked() || !cfg.full) return;
+    try {
+      if (!document.fullscreenElement) await document.documentElement.requestFullscreen({ navigationUI: 'hide' });
+      if (navigator.keyboard && navigator.keyboard.lock) await navigator.keyboard.lock();
+    } catch { /* navegador recusou: fica só o aviso de saída */ }
+  }
+  function exitFull() {
+    try { if (navigator.keyboard && navigator.keyboard.unlock) navigator.keyboard.unlock(); } catch { /* */ }
+    if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+  }
+
+  // fechar a aba, recarregar ou digitar outro endereço → o navegador pede confirmação
+  window.addEventListener('beforeunload', (e) => { if (isLocked()) { e.preventDefault(); e.returnValue = ''; } });
+  // links externos ficam bloqueados
+  document.addEventListener('click', (e) => {
+    const a = e.target.closest && e.target.closest('a[href]');
+    if (!a || !isLocked()) return;
+    if (new URL(a.href, location.href).origin !== location.origin) { e.preventDefault(); e.stopPropagation(); toast('Links externos ficam bloqueados durante o foco.'); }
+  }, true);
+  document.addEventListener('fullscreenchange', () => {
+    if (!document.fullscreenElement && isLocked() && cfg.full && guard.hidden) showGuard('fullscreen');
+  });
+  function markAway() {
+    if (!isLocked() || away.since) return;
+    away.since = Date.now(); away.n++; saveSess(); beep(); draw();
+  }
+  function markBack() {
+    if (!away.since) return;
+    away.ms += Date.now() - away.since; away.since = 0; saveSess();
+    showGuard('back');
+  }
+  document.addEventListener('visibilitychange', () => (document.hidden ? markAway() : markBack()));
+  window.addEventListener('pagehide', markAway); // fechou/recarregou: conta uma saída (uma vez só)
+  // clicar no player (iframe) também tira o foco da janela: isso não conta como saída
+  window.addEventListener('blur', () => setTimeout(() => {
+    if (document.activeElement && document.activeElement.tagName === 'IFRAME') return;
+    markAway();
+  }, 0));
+  window.addEventListener('focus', markBack);
 
   const fmt = (s) => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
+  const fmtAway = () => `Saídas neste ciclo: ${away.n}` + (away.ms >= 1000 ? ` · tempo fora: ${fmt(Math.round(away.ms / 1000))}` : '');
   function draw() {
+    const locked = isLocked();
     display.textContent = fmt(left);
     Object.entries(modeBtns).forEach(([k, b]) => b.classList.toggle('on', k === mode));
-    startBtn.textContent = running ? 'Pausar' : (left < cfg[mode] * 60 ? 'Continuar' : 'Iniciar');
+    startBtn.textContent = running ? (locked ? 'Encerrar foco' : 'Pausar') : (left < cfg[mode] * 60 ? 'Continuar' : 'Iniciar');
     label.textContent = running || left < cfg[mode] * 60 ? `${mode === 'foco' ? 'Foco' : 'Pausa'} ${fmt(left)}` : 'Timer';
     btn.classList.toggle('live', running);
+    btn.classList.toggle('locked', locked);
     count.textContent = `Ciclos de foco concluídos hoje: ${cfg.ciclos}`;
-    if (running) document.title = `${fmt(left)} · BD Quest`; else document.title = 'BD Quest · Banco de Dados I';
+    optLock.i.disabled = optFull.i.disabled = locked;
+    lockNote.textContent = locked ? `Foco travado até o fim do tempo. ${fmtAway()}` : '';
+    gTime.textContent = fmt(left);
+    gStats.textContent = fmtAway();
+    if (away.since) document.title = '⚠ Volte ao foco! · BD Quest';
+    else if (running) document.title = `${fmt(left)} · BD Quest`;
+    else document.title = 'BD Quest · Banco de Dados I';
   }
   function setMode(k) { pause(); mode = k; left = cfg[k] * 60; draw(); }
   function start() {
@@ -273,24 +372,46 @@ function initTimer(btn, label) {
       if (left === 0) finish();
       draw();
     }, 250);
+    if (isLocked()) { saveSess(); enterFull(); }
     draw();
   }
   function pause() { running = false; clearInterval(tick); draw(); }
+  function endFocus() {
+    const stats = fmtAway();
+    pause(); clearSess(); exitFull(); hideGuard();
+    left = cfg.foco * 60; away = { n: 0, ms: 0, since: 0 };
+    toast(`Foco encerrado antes do tempo. ${stats}`, 5000);
+    draw();
+  }
   function finish() {
+    const wasLocked = isLocked();
+    const stats = fmtAway();
     pause(); beep();
     if (mode === 'foco') {
+      if (wasLocked) { clearSess(); exitFull(); hideGuard(); }
+      away = { n: 0, ms: 0, since: 0 };
       const today = new Date().toDateString();
       if (cfg.dia !== today) { cfg.dia = today; cfg.ciclos = 0; }
       cfg.ciclos++; store.set('timer', cfg);
-      toast('Fim do ciclo de foco. Hora de uma pausa.', 5000);
+      toast(`Fim do ciclo de foco. Hora de uma pausa.${wasLocked ? ' ' + stats : ''}`, 6000);
       mode = cfg.ciclos % 4 === 0 ? 'longa' : 'pausa';
     } else { toast('Pausa encerrada. Bora voltar.', 5000); mode = 'foco'; }
     left = cfg[mode] * 60;
   }
   if (cfg.dia !== new Date().toDateString()) { cfg.ciclos = 0; }
-  pop.body.append(modeRow, display, h('div', { class: 'btnrow center' }, startBtn,
-    h('button', { class: 'btn secondary', onclick: () => { pause(); left = cfg[mode] * 60; draw(); } }, 'Zerar')), count,
-  h('details', { class: 'pop-details' }, h('summary', {}, 'Durações'), h('div', { class: 'durs' }, durInputs)));
+  pop.body.append(modeRow, display, h('div', { class: 'btnrow center' }, startBtn, resetBtn), lockNote, count,
+    h('div', { class: 'opts' }, optLock.el, optFull.el),
+    h('details', { class: 'pop-details' }, h('summary', {}, 'Durações'), h('div', { class: 'durs' }, durInputs)));
+
+  // retomar um foco em andamento (a página foi recarregada ou fechada e reaberta)
+  const sess = store.get('focusSession', null);
+  if (sess && cfg.lock) {
+    if (sess.endAt > Date.now() + 1000) {
+      mode = 'foco'; left = Math.round((sess.endAt - Date.now()) / 1000);
+      away = { n: Math.max(1, sess.n || 0), ms: sess.ms || 0, since: 0 };
+      start(); showGuard('reload');
+    } else clearSess();
+  }
   draw();
 }
 
