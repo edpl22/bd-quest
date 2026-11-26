@@ -136,12 +136,43 @@ export function codeEditor(parent, { value = '', mode = 'text/x-pgsql', onChange
   };
 }
 
-/** Feedback padronizado: items = [{status:'ok'|'err'|'warn'|'info', text, why}] */
+/** Resultado do envio no formato "casos de teste": items = [{status:'ok'|'err'|'warn'|'info', text, why}] */
 export function feedbackBox(pass, title, items = []) {
-  const icons = { ok: '✓', err: '✗', warn: '!', info: 'i' };
-  return h('div', { class: 'feedback ' + (pass ? 'pass' : 'fail') },
-    h('div', { class: 'feedback-head' }, pass ? '✓' : '✗', title),
-    items.length ? h('ul', {}, items.map((it) => h('li', { class: it.status },
-      h('span', { class: 'ic' }, icons[it.status] || '•'),
-      h('span', {}, h('span', { html: it.text }), it.why ? h('span', { class: 'why', html: it.why }) : null)))) : null);
+  const label = { ok: 'Passou', err: 'Falhou', warn: 'Atenção', info: 'Info' };
+  const tests = items.filter((i) => i.status === 'ok' || i.status === 'err');
+  const passed = tests.filter((i) => i.status === 'ok').length;
+  return h('div', { class: 'verdict ' + (pass ? 'pass' : 'fail') },
+    h('div', { class: 'verdict-head' },
+      h('span', { class: 'verdict-badge' }, pass ? 'Aprovado' : 'Não aprovado'),
+      h('span', { class: 'verdict-title' }, title),
+      tests.length ? h('span', { class: 'verdict-count' }, `${passed}/${tests.length} verificações`) : null),
+    items.length ? h('ol', { class: 'cases' }, items.map((it) => h('li', { class: 'case ' + it.status },
+      h('span', { class: 'case-status' }, label[it.status] || ''),
+      h('span', { class: 'case-text' }, h('span', { html: it.text }), it.why ? h('small', { html: it.why }) : null)))) : null);
+}
+
+/** Painel com abas simples (console). defs: [[id, rótulo]] */
+export function tabbed(defs, cls = 'console') {
+  const head = h('div', { class: cls + '-tabs', role: 'tablist' });
+  const body = h('div', { class: cls + '-body' });
+  const panes = {}, btns = {};
+  const show = (id) => {
+    for (const k of Object.keys(panes)) {
+      panes[k].hidden = k !== id;
+      btns[k].classList.toggle('on', k === id);
+      btns[k].setAttribute('aria-selected', k === id);
+    }
+  };
+  for (const [id, label] of defs) {
+    btns[id] = h('button', { type: 'button', role: 'tab', onclick: () => show(id) }, label);
+    panes[id] = h('div', { class: cls + '-pane', role: 'tabpanel' });
+    head.append(btns[id]);
+    body.append(panes[id]);
+  }
+  show(defs[0][0]);
+  return { el: h('div', { class: cls }, head, body), pane: (id) => panes[id], show, btn: (id) => btns[id] };
+}
+
+export function emptyNote(text) {
+  return h('div', { class: 'empty-note' }, text);
 }

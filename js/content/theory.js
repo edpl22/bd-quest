@@ -1,4 +1,5 @@
 // Teoria — resumo do material de aula, na ordem dos assuntos da FOE.
+import { SQLREF } from './sqlref.js';
 
 export const FIGS = {
   lotacao: {
@@ -506,8 +507,9 @@ DELETE FROM clientes;   -- apaga TUDO: confira várias vezes!</pre>
 <p>Palavras-chave em MAIÚSCULAS, identificadores em minúsculas/snake_case, uma cláusula por linha, apelidos curtos nas junções, <code>AS</code> explícito, termine com <code>;</code>.</p>
 `,
 },
+SQLREF,
 {
-  id: 'triggers', num: 10, title: 'Triggers (gatilhos) e PL/pgSQL', foe: 'Triggers',
+  id: 'triggers', num: 11, title: 'Triggers (gatilhos) e PL/pgSQL', foe: 'Triggers',
   practice: ['7-1', '7-2', '7-3', '7-4', '7-5', '7-6', '7-7'],
   html: `
 <p>Restrições declarativas (NOT NULL, CHECK, UNIQUE, FK) validam o estado de <b>uma</b> tabela. <b>Triggers</b> implementam regras de negócio complexas, auditoria e atualizações automáticas, disparando em um evento DML.</p>
@@ -582,7 +584,7 @@ CREATE TRIGGER tg_log AFTER UPDATE OF salario ON emp.empregado
 `,
 },
 {
-  id: 'prova', num: 11, title: 'Roteiro da prova: do conceitual ao SQL', foe: 'Integração',
+  id: 'prova', num: 12, title: 'Roteiro da prova: do conceitual ao SQL', foe: 'Integração',
   practice: [],
   html: `
 <p>O objetivo anunciado da VF: partir de um minimundo e chegar à implementação. Siga sempre a mesma receita — ela é a mesma dos bosses.</p>
@@ -623,7 +625,7 @@ CREATE TRIGGER tg_log AFTER UPDATE OF salario ON emp.empregado
 <li><code>= NULL</code> em vez de <code>IS NULL</code>; coluna no SELECT fora do GROUP BY; WHERE com agregação (use HAVING).</li>
 <li>Trigger BEFORE sem <code>RETURN NEW</code> (linha não é gravada!).</li>
 </ul>
-<p><a class="btn boss" href="#/boss">⚔ Treinar nos bosses</a></p>
+<p><a class="btn primary" href="#/boss">Treinar na avaliação final</a></p>
 `,
 },
 ];

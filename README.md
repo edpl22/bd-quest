@@ -4,10 +4,11 @@ Site de treino para a VF de Banco de Dados I (09913), seguindo os assuntos da FO
 conceitos básicos, arquitetura, modelagem conceitual e lógica, modelo ER, modelo relacional,
 mapeamento ER→relacional, álgebra relacional, SQL (DDL e DML) e triggers.
 
-- **Teoria**: resumo do material de aula, na notação usada pelo professor (cardinalidade Heuser/brModelo, notação resumida).
-- **Trilha**: ~70 níveis com correção automática e passo a passo.
-- **Boss final**: 3 projetos completos no formato da prova — conceitual → lógico → DDL → consultas → gatilho.
+- **Teoria**: resumo do material de aula, na notação usada pelo professor (cardinalidade Heuser/brModelo, notação resumida), mais um **guia de referência SQL** com 30 exemplos executáveis (COUNT DISTINCT, FILTER, CASE, NULL, junções, subconsultas, CTE recursiva, funções de janela, UPSERT, transações…).
+- **Desafios**: ~80 desafios com correção automática e passo a passo, em layout de plataforma de treino (enunciado | editor | console de verificações).
+- **Avaliação final**: 3 projetos completos no formato da prova — conceitual → lógico → DDL → consultas → gatilho.
 - **Playground**: SQL, álgebra relacional e editor ER livres.
+- **Conforto**: player de música (YouTube, YouTube Music e Spotify, com playlists salvas e mini-controles na barra), timer de foco (pomodoro) e busca rápida com <kbd>Ctrl</kbd>+<kbd>K</kbd>.
 
 ## Como funciona (sem servidor)
 
@@ -57,6 +58,8 @@ index.html
 css/style.css
 js/main.js            páginas e rotas (#/trilha, #/nivel/2-2, #/teoria/er, #/boss/b1/0 ...)
 js/content/theory.js  teoria
+js/content/sqlref.js  guia de referência SQL
+js/dock.js            música, timer de foco e busca rápida
 js/content/levels.js  níveis da trilha
 js/content/bosses.js  os 3 bosses
 js/data/seeds.js      bancos: emp (script da disciplina), ar (álgebra), vazio

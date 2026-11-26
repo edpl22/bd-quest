@@ -5,35 +5,41 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>BD Quest · Banco de Dados I</title>
   <meta name="description" content="Treino para a VF de Banco de Dados I: modelo ER, modelo relacional, mapeamento, álgebra relacional, SQL e triggers, com PostgreSQL rodando no navegador.">
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cellipse cx='32' cy='14' rx='22' ry='8' fill='%232f6fde'/%3E%3Cpath d='M10 14v36c0 4.4 9.8 8 22 8s22-3.6 22-8V14c0 4.4-9.8 8-22 8s-22-3.6-22-8z' fill='%232f6fde' opacity='.75'/%3E%3C/svg%3E">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='4' fill='%230f62fe'/%3E%3Cpath d='M9 10h9a4 4 0 0 1 0 8H9zM9 18h10a4 4 0 0 1 0 8H9z' fill='none' stroke='white' stroke-width='2.4'/%3E%3C/svg%3E">
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
   <link rel="stylesheet" href="css/style.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/sql/sql.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/matchbrackets.min.js"></script>
+  <script>try { var t = localStorage.getItem('bdquest:theme'); if (t) document.documentElement.dataset.theme = JSON.parse(t); } catch (e) {}</script>
 </head>
 <body>
   <header class="topbar">
-    <a class="brand" href="#/">
-      <svg viewBox="0 0 64 64" aria-hidden="true"><ellipse cx="32" cy="14" rx="22" ry="8"/><path d="M10 14v36c0 4.4 9.8 8 22 8s22-3.6 22-8V14c0 4.4-9.8 8-22 8s-22-3.6-22-8z" opacity=".7"/></svg>
-      <span>BD Quest</span>
+    <a class="brand" href="#/" aria-label="Início">
+      <span class="brand-mark" aria-hidden="true">BD</span>
+      <span class="brand-name">BD Quest</span>
+      <span class="brand-course">Banco de Dados I</span>
     </a>
-    <nav class="mainnav" id="mainnav">
-      <a href="#/" data-nav="home">Início</a>
-      <a href="#/trilha" data-nav="trilha">Trilha</a>
+    <nav class="mainnav" aria-label="Principal">
+      <a href="#/" data-nav="home">Painel</a>
+      <a href="#/trilha" data-nav="trilha">Desafios</a>
       <a href="#/teoria" data-nav="teoria">Teoria</a>
-      <a href="#/boss" data-nav="boss">Boss final</a>
+      <a href="#/boss" data-nav="boss">Avaliação final</a>
       <a href="#/playground" data-nav="playground">Playground</a>
     </nav>
     <div class="topbar-right">
-      <div class="xp" id="xpbar" title="Progresso geral"><div class="xp-fill" id="xpfill"></div><span id="xptext">0%</span></div>
-      <button class="iconbtn" id="themebtn" title="Alternar tema" aria-label="Alternar tema">◐</button>
+      <button class="top-search" id="searchbtn" type="button"><span class="ic" aria-hidden="true"><svg viewBox="0 0 16 16"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5L14 14"/></svg></span><span class="ts-label">Buscar</span><kbd>Ctrl K</kbd></button>
+      <div class="miniplayer" id="miniplayer" hidden></div>
+      <button class="topbtn" id="timerbtn" type="button" aria-expanded="false" title="Timer de foco"><span class="ic" aria-hidden="true"><svg viewBox="0 0 16 16"><circle cx="8" cy="9" r="5.5"/><path d="M8 9V6M6.5 1.5h3"/></svg></span><span id="timerlabel">Timer</span></button>
+      <button class="topbtn" id="musicbtn" type="button" aria-expanded="false" title="Música"><span class="ic" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M6 12V3l7-1.5V10"/><circle cx="4.5" cy="12" r="1.8"/><circle cx="11.5" cy="10.5" r="1.8"/></svg></span><span class="tb-label">Música</span></button>
+      <span class="top-progress" id="progress" title="Progresso geral"><span class="tp-bar"><i id="xpfill"></i></span><span id="xptext">0%</span></span>
+      <button class="topbtn icon-only" id="themebtn" type="button" title="Alternar tema claro/escuro" aria-label="Alternar tema"><span class="ic" aria-hidden="true"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.5"/><path d="M8 2.5v11a5.5 5.5 0 0 0 0-11z" fill="currentColor" stroke="none"/></svg></span></button>
     </div>
   </header>
   <main id="app" class="app"></main>
-  <div id="toast" class="toast" role="status"></div>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
   <script type="module" src="js/main.js"></script>
 </body>
 </html>
