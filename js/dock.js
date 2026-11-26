@@ -1,5 +1,6 @@
 // Ferramentas de conforto: player de música, timer de foco e busca rápida (Ctrl+K).
 import { h, store, toast, norm } from './util.js';
+import { initScare, triggerScare } from './scare.js';
 
 // ---------- ícones (traço simples) ----------
 export const ICON = {
@@ -241,6 +242,7 @@ function initTimer(btn, label) {
   const cfg = store.get('timer', { foco: 25, pausa: 5, longa: 15, ciclos: 0 });
   if (cfg.lock === undefined) cfg.lock = true;
   if (cfg.full === undefined) cfg.full = true;
+  if (cfg.susto === undefined) cfg.susto = true;
   const MODES = { foco: 'Foco', pausa: 'Pausa curta', longa: 'Pausa longa' };
   let mode = 'foco', left = cfg.foco * 60, running = false, endAt = 0, tick = null;
   // saídas durante o foco: quantas vezes e quanto tempo fora
@@ -268,6 +270,8 @@ function initTimer(btn, label) {
   };
   const optLock = opt('lock', 'Travar a página durante o foco (só sai quando o tempo acabar ou você encerrar)');
   const optFull = opt('full', 'Tela cheia com teclado travado (segure Esc para sair)');
+  const optScare = opt('susto', 'Sustos aleatórios para manter a atenção (1 em 100.000 por segundo)');
+  initScare(() => !!cfg.susto);
   const lockNote = h('div', { class: 'hint lock-note' });
 
   // ---------- tela de bloqueio ----------
@@ -400,7 +404,7 @@ function initTimer(btn, label) {
   }
   if (cfg.dia !== new Date().toDateString()) { cfg.ciclos = 0; }
   pop.body.append(modeRow, display, h('div', { class: 'btnrow center' }, startBtn, resetBtn), lockNote, count,
-    h('div', { class: 'opts' }, optLock.el, optFull.el),
+    h('div', { class: 'opts' }, optLock.el, optFull.el, h('div', { class: 'check-row' }, optScare.el, h('button', { class: 'btn ghost small', title: 'Ver o susto agora', onclick: () => triggerScare() }, 'Testar'))),
     h('details', { class: 'pop-details' }, h('summary', {}, 'Durações'), h('div', { class: 'durs' }, durInputs)));
 
   // retomar um foco em andamento (a página foi recarregada ou fechada e reaberta)

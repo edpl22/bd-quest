@@ -547,3 +547,21 @@ details.block .er { border: 0; }
   .pane.right { padding: 12px; }
   .miniplayer .mini-title { display: none; }
 }
+
+/* ---------- susto raro (NULL) ---------- */
+.check-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.check-row .btn.small { flex-shrink: 0; padding: 2px 8px; min-height: 0; }
+.scare { position: fixed; inset: 0; z-index: 20000; display: grid; place-items: center; background: #000; overflow: hidden; animation: scare-flash .12s steps(2) 3; }
+.scare.out { opacity: 0; transition: opacity .3s; }
+.scare-face { width: min(95vw, 95vh); animation: scare-in .22s cubic-bezier(.2, 1.6, .4, 1) both, scare-jitter .07s linear .22s infinite; }
+.scare-face svg { width: 100%; height: auto; display: block; filter: drop-shadow(0 0 40px rgba(255, 30, 20, .45)); }
+.scare .ns-eye { animation: scare-eye .15s steps(2) infinite; }
+body.scare-shake { animation: scare-shake .08s linear infinite; }
+@keyframes scare-in { from { transform: scale(.15) rotate(-8deg); } to { transform: scale(1.08) rotate(0); } }
+@keyframes scare-jitter { 0% { transform: scale(1.08) translate(0, 0); } 33% { transform: scale(1.1) translate(-6px, 4px); } 66% { transform: scale(1.07) translate(5px, -5px); } }
+@keyframes scare-flash { 50% { background: #3a0000; } }
+@keyframes scare-eye { 50% { opacity: .55; } }
+@keyframes scare-shake { 0%, 100% { transform: translate(0, 0); } 50% { transform: translate(3px, -2px); } }
+@media (prefers-reduced-motion: reduce) {
+  .scare, .scare-face, .scare .ns-eye, body.scare-shake { animation: none; }
+}
