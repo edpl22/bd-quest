@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>BD Quest · Banco de Dados I</title>
+  <meta name="description" content="Treino para a VF de Banco de Dados I: modelo ER, modelo relacional, mapeamento, álgebra relacional, SQL e triggers, com PostgreSQL rodando no navegador.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cellipse cx='32' cy='14' rx='22' ry='8' fill='%232f6fde'/%3E%3Cpath d='M10 14v36c0 4.4 9.8 8 22 8s22-3.6 22-8V14c0 4.4-9.8 8-22 8s-22-3.6-22-8z' fill='%232f6fde' opacity='.75'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
+  <link rel="stylesheet" href="css/style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/sql/sql.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/matchbrackets.min.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="#/">
+      <svg viewBox="0 0 64 64" aria-hidden="true"><ellipse cx="32" cy="14" rx="22" ry="8"/><path d="M10 14v36c0 4.4 9.8 8 22 8s22-3.6 22-8V14c0 4.4-9.8 8-22 8s-22-3.6-22-8z" opacity=".7"/></svg>
+      <span>BD Quest</span>
+    </a>
+    <nav class="mainnav" id="mainnav">
+      <a href="#/" data-nav="home">Início</a>
+      <a href="#/trilha" data-nav="trilha">Trilha</a>
+      <a href="#/teoria" data-nav="teoria">Teoria</a>
+      <a href="#/boss" data-nav="boss">Boss final</a>
+      <a href="#/playground" data-nav="playground">Playground</a>
+    </nav>
+    <div class="topbar-right">
+      <div class="xp" id="xpbar" title="Progresso geral"><div class="xp-fill" id="xpfill"></div><span id="xptext">0%</span></div>
+      <button class="iconbtn" id="themebtn" title="Alternar tema" aria-label="Alternar tema">◐</button>
+    </div>
+  </header>
+  <main id="app" class="app"></main>
+  <div id="toast" class="toast" role="status"></div>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
