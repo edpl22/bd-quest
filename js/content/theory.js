@@ -311,41 +311,43 @@ CASAMENTO (#homCpf, mlhCpf, data, regime)            -- 1:1 (0,1)-(0,1)
   html: `
 <p>Linguagem de consulta <b>procedural</b>: o usuário indica a sequência de operações. As operações recebem relações e devolvem relações (fechamento), e o resultado é sempre um <b>conjunto</b> (sem duplicatas).</p>
 <table class="tbl">
-<tr><th>Operação</th><th>Notação</th><th>Resultado</th></tr>
-<tr><td>Seleção</td><td><code>σ cond (R)</code></td><td>tuplas de R que satisfazem cond (filtra <b>linhas</b>). Use ∧ ∨ ¬ e = ≠ &lt; &gt; ≤ ≥.</td></tr>
-<tr><td>Projeção</td><td><code>π a, b (R)</code></td><td>apenas as colunas a, b — <b>elimina duplicatas</b>.</td></tr>
-<tr><td>União</td><td><code>R ∪ S</code></td><td>tuplas de R ou de S</td></tr>
-<tr><td>Diferença</td><td><code>R − S</code></td><td>tuplas de R que não estão em S</td></tr>
-<tr><td>Produto cartesiano</td><td><code>R × S</code></td><td>todas as combinações (grau = soma, cardinalidade = produto)</td></tr>
-<tr><td>Renomeação</td><td><code>ρ X (R)</code>, <code>ρ X(a,b) (R)</code>, <code>ρ novo←velho (R)</code></td><td>muda nome da relação e/ou atributos (essencial na auto-junção)</td></tr>
-<tr><td>Interseção</td><td><code>R ∩ S</code></td><td>tuplas em ambas = R − (R − S)</td></tr>
-<tr><td>Junção θ</td><td><code>R ⋈ cond S</code></td><td>σ cond (R × S). Equi-junção: só igualdades.</td></tr>
-<tr><td>Junção natural</td><td><code>R ⋈ S</code></td><td>igualdade nos atributos de <b>mesmo nome</b>, que aparecem uma vez só</td></tr>
-<tr><td>Divisão</td><td><code>R ÷ S</code></td><td>valores x tais que (x, y) ∈ R <b>para todo</b> y ∈ S — consultas “todos”</td></tr>
-<tr><td>Junção externa</td><td><code>⟕ ⟖ ⟗</code></td><td>mantém tuplas sem par (esquerda, direita, ambas) com nulos</td></tr>
-<tr><td>Agregação</td><td><code>γ g; count(*)→n (R)</code> (notação de aula: <code>g ℑ COUNT(x) (R)</code>)</td><td>agrupa por g e calcula funções</td></tr>
-<tr><td>Atribuição</td><td><code>T ← expr</code></td><td>guarda resultado intermediário</td></tr></table>
+<tr><th>Operação</th><th>No papel</th><th>Como digitar aqui</th><th>Resultado</th></tr>
+<tr><td>Seleção</td><td>σ<sub>cond</sub>(R)</td><td><code>σ[cond](R)</code></td><td>tuplas de R que satisfazem cond (filtra <b>linhas</b>). Use ∧ ∨ ¬ e = ≠ &lt; &gt; ≤ ≥.</td></tr>
+<tr><td>Projeção</td><td>π<sub>a, b</sub>(R)</td><td><code>π[a, b](R)</code></td><td>apenas as colunas a, b — <b>elimina duplicatas</b>.</td></tr>
+<tr><td>União</td><td>R ∪ S</td><td><code>R ∪ S</code></td><td>tuplas de R ou de S</td></tr>
+<tr><td>Diferença</td><td>R − S</td><td><code>R − S</code></td><td>tuplas de R que não estão em S</td></tr>
+<tr><td>Produto cartesiano</td><td>R × S</td><td><code>R × S</code></td><td>todas as combinações (grau = soma, cardinalidade = produto)</td></tr>
+<tr><td>Renomeação</td><td>ρ<sub>X</sub>(R), ρ<sub>X(a,b)</sub>(R), ρ<sub>novo←velho</sub>(R)</td><td><code>ρ[X](R)</code>, <code>ρ[X(a, b)](R)</code>, <code>ρ[novo ← velho](R)</code></td><td>muda nome da relação e/ou atributos (essencial na auto-junção)</td></tr>
+<tr><td>Interseção</td><td>R ∩ S</td><td><code>R ∩ S</code></td><td>tuplas em ambas = R − (R − S)</td></tr>
+<tr><td>Junção θ</td><td>R ⋈<sub>cond</sub> S</td><td><code>R ⋈[cond] S</code></td><td>σ<sub>cond</sub>(R × S). Equi-junção: só igualdades.</td></tr>
+<tr><td>Junção natural</td><td>R ⋈ S</td><td><code>R ⋈ S</code></td><td>igualdade nos atributos de <b>mesmo nome</b>, que aparecem uma vez só</td></tr>
+<tr><td>Divisão</td><td>R ÷ S</td><td><code>R ÷ S</code></td><td>valores x tais que (x, y) ∈ R <b>para todo</b> y ∈ S — consultas “todos”</td></tr>
+<tr><td>Junção externa</td><td>R ⟕<sub>cond</sub> S</td><td><code>R ⟕[cond] S</code> (também ⟖ ⟗)</td><td>mantém tuplas sem par (esquerda, direita, ambas) com nulos</td></tr>
+<tr><td>Agregação</td><td><sub>g</sub>ℑ<sub>COUNT(x)</sub>(R)</td><td><code>g ℑ[COUNT(x) → n](R)</code></td><td>agrupa por g e calcula funções (COUNT, SUM, AVG, MIN, MAX)</td></tr>
+<tr><td>Atribuição</td><td>T ← expr</td><td><code>T ← expr</code> (uma por linha)</td><td>guarda resultado intermediário</td></tr></table>
+<div class="callout"><p><b>Regra da digitação:</b> o que no papel fica <b>embaixo do símbolo</b> (o subscrito) vai entre <b>colchetes</b>; a relação de entrada vai entre <b>parênteses</b>. Enquanto você digita, o editor mostra a expressão “no papel”, com subscritos.</p></div>
 <p><b>Compatibilidade de união</b>: ∪, ∩ e − exigem o mesmo número de atributos com domínios compatíveis.</p>
 <p><b>Operações fundamentais</b>: σ, π, ∪, −, × (e ρ). As demais são derivadas:</p>
-<pre>R ∩ S  = R − (R − S)
-R ⋈θ S = σθ (R × S)
-R ÷ S  = πγ(R) − πγ( (πγ(R) × S) − R )     -- γ = atributos de R que não estão em S</pre>
+<p>R ∩ S = R − (R − S)<br>R ⋈<sub>θ</sub> S = σ<sub>θ</sub>(R × S)<br>R ÷ S = π<sub>X</sub>(R) − π<sub>X</sub>((π<sub>X</sub>(R) × S) − R), em que X = atributos de R que não estão em S</p>
 <h3>Exemplos (empresa do caderno de exercícios)</h3>
 <pre>-- empregados do depto 4 com salário > 25000 ou do depto 5 com salário > 30000
-σ (dnum = 4 ∧ salario > 25000) ∨ (dnum = 5 ∧ salario > 30000) (EMPREGADO)
+σ[(dnum = 4 ∧ salario > 25000) ∨ (dnum = 5 ∧ salario > 30000)](EMPREGADO)
 
 -- nome dos departamentos e de seus gerentes
-π dnome, pnome, snome (DEPARTAMENTO ⋈ matger = mat EMPREGADO)
+π[dnome, pnome, snome](DEPARTAMENTO ⋈[matger = mat] EMPREGADO)
 
 -- empregadas e seus dependentes (produto + seleção)
-F ← π mat, pnome, snome (σ sexo = 'F' (EMPREGADO))
-π pnome, snome, depnome (σ mat = emat (F × DEPENDENTE))
+F ← π[mat, pnome, snome](σ[sexo = 'F'](EMPREGADO))
+π[pnome, snome, depnome](σ[mat = emat](F × DEPENDENTE))
+
+-- número de empregados e média salarial por departamento
+dnum ℑ[COUNT(*) → qtd, AVG(salario) → media](EMPREGADO)
 
 -- quem trabalha em TODOS os projetos em que João Rocha trabalha (divisão)
-JP ← π pnum (TRABALHA_EM ⋈ σ pnome = 'João' ∧ snome = 'Rocha' (EMPREGADO))
-π pnome, snome ((π mat, pnum (TRABALHA_EM) ÷ JP) ⋈ EMPREGADO)</pre>
+JP ← π[pnum](TRABALHA_EM ⋈ σ[pnome = 'João' ∧ snome = 'Rocha'](EMPREGADO))
+π[pnome, snome]((π[mat, pnum](TRABALHA_EM) ÷ JP) ⋈ EMPREGADO)</pre>
 <div class="callout"><p><b>Dicas:</b> filtre cedo (σ antes da junção), projete só o necessário antes de ∪/−, e use <b>−</b> para “não”/“nenhum” e <b>÷</b> para “todos”. Na junção natural cuidado com atributos homônimos que você <i>não</i> quer igualar — projete ou renomeie antes.</p></div>
-<p>Aqui no site a álgebra é traduzida para SQL e executada no PostgreSQL. Sintaxe aceita: símbolos (σ π ρ ⋈ × ∪ ∩ − ÷ γ ⟕ ⟖ ⟗ ∧ ∨ ¬ ≠ ≤ ≥ ← →) ou palavras (sigma, pi, rho, join, cross join, union, intersect, minus, divide, gamma, and, or, not).</p>
+<p>Aqui no site a álgebra é traduzida para SQL e executada no PostgreSQL. Além dos símbolos, o editor aceita palavras (sigma, pi, rho, join, union, minus, divide, and, or, not), <code>&lt;=</code> <code>&gt;=</code> <code>&lt;&gt;</code> e a forma antiga sem colchetes.</p>
 `,
 },
 {

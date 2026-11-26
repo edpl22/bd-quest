@@ -3,7 +3,7 @@
 import { h, store, toast, codeEditor, feedbackBox, spinner, tabbed, emptyNote } from './util.js';
 import { createEditor, checkModel, specToModel, staticSVG, emptyModel } from './er.js';
 import { parseSchema, renderSchema, checkSchema, cleanGabarito } from './relational.js';
-import { translate, loadCatalog, RA_SYMBOLS, RAError } from './algebra.js';
+import { translate, loadCatalog, renderRA, RA_OPS, RA_LOGIC, RAError } from './algebra.js';
 import { gradeSQL, runForDisplay, expectedResult } from './sqlcheck.js';
 import { serial, resetTo, query, runScript, errMsg, compareResults } from './db.js';
 import { DB_INFO } from './data/seeds.js';
@@ -167,6 +167,29 @@ export function mapWorkspace(level, onPass, { storeKey } = {}) {
 
 // ---------- álgebra relacional ----------
 const catalogCache = {};
+// cola de sintaxe da álgebra (fica fechada por padrão)
+function raHelp() {
+  const rows = [
+    ['Seleção', 'σ[condição](R)', "σ[dnum = 5 ∧ salario > 3000](EMPREGADO)"],
+    ['Projeção', 'π[atributos](R)', 'π[pnome, snome](EMPREGADO)'],
+    ['Renomear relação', 'ρ[X](R)', 'ρ[S](EMPREGADO)'],
+    ['Renomear atributos', 'ρ[novo ← velho](R)', 'ρ[chefe ← matsup](EMPREGADO)'],
+    ['Junção θ', 'R ⋈[condição] S', 'DEPARTAMENTO ⋈[matger = mat] EMPREGADO'],
+    ['Junção natural', 'R ⋈ S', 'PROJETO ⋈ DEPARTAMENTO'],
+    ['Externa', 'R ⟕[condição] S', 'EMPREGADO ⟕[mat = emat] DEPENDENTE'],
+    ['Conjuntos', 'R ∪ S · R ∩ S · R − S', 'π[mat](A) − π[emat](B)'],
+    ['Produto / divisão', 'R × S · R ÷ S', 'π[mat, pnum](TRABALHA_EM) ÷ JP'],
+    ['Agregação', 'grupos ℑ[funções](R)', 'dnum ℑ[COUNT(*) → qtd, AVG(salario) → media](EMPREGADO)'],
+    ['Atribuição', 'T ← expressão', "F ← σ[sexo = 'F'](EMPREGADO)"],
+  ];
+  return h('details', { class: 'ra-help' },
+    h('summary', {}, 'Como escrever'),
+    h('p', { class: 'small' }, 'O que fica embaixo do símbolo no papel (o subscrito) vai entre ', h('b', {}, '[ ]'), '; a relação vai entre ', h('b', {}, '( )'), '. Uma atribuição por linha. Textos entre aspas simples.'),
+    h('table', { class: 'tbl ra-help-tbl' }, h('tr', {}, h('th', {}, 'Operação'), h('th', {}, 'Forma'), h('th', {}, 'Exemplo')),
+      ...rows.map(([a, b, c]) => h('tr', {}, h('td', {}, a), h('td', {}, h('code', {}, b)), h('td', {}, h('code', {}, c))))),
+    h('p', { class: 'small muted' }, 'Também funciona: palavras (sigma, pi, join, and, or…), <= >= <> e a forma sem colchetes (σ dnum = 5 (EMPREGADO)).'));
+}
+
 export function raWorkspace(level, onPass, { storeKey, free = false } = {}) {
   const key = storeKey || 'ra:' + level.id;
   const db = level.db || 'algebra';
@@ -174,15 +197,37 @@ export function raWorkspace(level, onPass, { storeKey, free = false } = {}) {
   const { root, foot } = ideShell({ title: 'Álgebra relacional', meta: `traduzida para SQL · banco ${schema}` });
   const sym = h('div', { class: 'symbar' });
   root.append(sym);
-  const ed = codeEditor(root, { value: store.get(key, level.starter || ''), mode: null, onChange: (v) => store.set(key, v), placeholder: 'π pnome, snome (σ salario > 30000 (EMPREGADO))' });
-  for (const [s, t] of RA_SYMBOLS) sym.append(h('button', { type: 'button', title: t, onclick: () => ed.insert(s + ' ') }, s));
+  const preview = h('div', { class: 'ra-preview', 'aria-live': 'polite' });
+  const ed = codeEditor(root, {
+    value: store.get(key, level.starter || ''), mode: null,
+    onChange: (v) => { store.set(key, v); schedulePreview(); },
+    placeholder: 'π[pnome, snome](σ[salario > 30000](EMPREGADO))',
+  });
+  for (const [s, t, tpl, back] of RA_OPS) sym.append(h('button', { type: 'button', title: t, onclick: () => ed.insert(tpl, back) }, s));
+  sym.append(h('span', { class: 'symsep' }));
+  for (const [s, t] of RA_LOGIC) sym.append(h('button', { type: 'button', title: t, onclick: () => ed.insert(' ' + s + ' ') }, s));
+  root.append(preview, raHelp());
+  let pvTimer = null;
+  function schedulePreview() { clearTimeout(pvTimer); pvTimer = setTimeout(drawPreview, 180); }
+  function drawPreview() {
+    const src = ed.get();
+    preview.innerHTML = '';
+    preview.append(h('span', { class: 'ra-preview-k' }, 'No papel'));
+    if (!src.trim()) { preview.append(h('span', { class: 'muted' }, 'a expressão aparece aqui com subscritos, como na prova.')); return; }
+    try { preview.append(h('div', { class: 'ra-paper', html: renderRA(src) })); }
+    catch (e) { preview.append(h('span', { class: 'ra-preview-err' }, e instanceof RAError ? e.message : 'expressão incompleta')); }
+  }
+  drawPreview();
   const tabs = [['out', 'Saída'], ['tests', 'Resultado'], ['sql', 'SQL gerado']];
   if (!free && level.raSolution) tabs.push(['sol', 'Solução']);
   const con = tabbed(tabs);
   con.pane('out').append(emptyNote('Execute para ver a relação resultante.'));
   con.pane('tests').append(emptyNote('Envie para comparar com o resultado esperado.'));
   con.pane('sql').append(emptyNote('O SQL equivalente aparece aqui após executar.'));
-  if (con.pane('sol')) con.pane('sol').append(revealBlock('Mostrar uma solução', () => h('div', {}, h('pre', { class: 'code' }, level.raSolution), level.explain ? h('div', { class: 'prose-sm', html: level.explain }) : null)));
+  if (con.pane('sol')) con.pane('sol').append(revealBlock('Mostrar uma solução', () => h('div', {},
+    h('div', { class: 'ra-preview solo' }, h('span', { class: 'ra-preview-k' }, 'No papel'), h('div', { class: 'ra-paper', html: renderRA(level.raSolution) })),
+    h('p', { class: 'small muted' }, 'Como digitar:'), h('pre', { class: 'code' }, level.raSolution),
+    level.explain ? h('div', { class: 'prose-sm', html: level.explain }) : null)));
 
   async function run(grade) {
     const out = con.pane('out');

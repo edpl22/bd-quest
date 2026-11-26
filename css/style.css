@@ -275,6 +275,20 @@ select.input { padding-right: 28px; }
 .symbar { display: flex; flex-wrap: wrap; gap: 0; padding: 6px 8px; border-bottom: 1px solid var(--border); background: var(--layer); }
 .symbar button { font: 15px var(--mono); min-width: 32px; height: 30px; border: 0; background: transparent; color: var(--text); cursor: pointer; }
 .symbar button:hover { background: var(--layer-hover); }
+.symbar .symsep { width: 1px; background: var(--border); margin: 4px 6px; }
+.ra-preview { display: flex; gap: 12px; align-items: baseline; padding: 10px 14px; border-top: 1px solid var(--border); background: var(--layer-2); min-height: 44px; }
+.ra-preview.solo { border: 1px solid var(--border); margin-bottom: 10px; }
+.ra-preview-k { font: 600 .6875rem var(--mono); text-transform: uppercase; letter-spacing: .06em; color: var(--text-3); flex-shrink: 0; }
+.ra-paper { font: 1.05rem/1.9 "Cambria Math", "STIX Two Math", "Times New Roman", serif; color: var(--text); overflow-x: auto; }
+.ra-paper .ra-line + .ra-line { margin-top: 2px; }
+.ra-paper sub { font-size: .72em; vertical-align: -0.45em; line-height: 0; font-style: italic; }
+.ra-paper .ra-op { color: var(--accent); font-style: normal; padding: 0 1px; }
+.ra-paper .ra-rel { font-variant: small-caps; letter-spacing: .02em; }
+.ra-preview-err { font-size: .8125rem; color: var(--text-3); }
+.ra-help { border-top: 1px solid var(--border); padding: 8px 14px; font-size: .8125rem; }
+.ra-help summary { cursor: pointer; color: var(--text-2); }
+.ra-help-tbl { margin-top: 8px; font-size: .78rem; }
+.ra-help-tbl td { vertical-align: top; }
 
 /* console */
 .console { background: var(--layer); border: 1px solid var(--border); }

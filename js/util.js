@@ -106,7 +106,10 @@ export function codeEditor(parent, { value = '', mode = 'text/x-pgsql', onChange
     return {
       get: () => cm.getValue(),
       set: (v) => cm.setValue(v),
-      insert: (t) => { cm.replaceSelection(t); cm.focus(); },
+      insert: (t, back = 0) => {
+        cm.replaceSelection(t); if (back) { const c = cm.getCursor(); cm.setCursor({ line: c.line, ch: c.ch - back }); }
+        cm.focus();
+      },
       onKey: (fn) => cm.on('keydown', (_, e) => fn(e)),
       focus: () => cm.focus(),
       refresh: () => cm.refresh(),
@@ -128,7 +131,11 @@ export function codeEditor(parent, { value = '', mode = 'text/x-pgsql', onChange
   return {
     get: () => ta.value,
     set: (v) => { ta.value = v; ta.dispatchEvent(new Event('input')); },
-    insert: (t) => { ta.setRangeText(t, ta.selectionStart, ta.selectionEnd, 'end'); ta.focus(); ta.dispatchEvent(new Event('input')); },
+    insert: (t, back = 0) => {
+      ta.setRangeText(t, ta.selectionStart, ta.selectionEnd, 'end');
+      if (back) ta.selectionStart = ta.selectionEnd = ta.selectionEnd - back;
+      ta.focus(); ta.dispatchEvent(new Event('input'));
+    },
     onKey: (fn) => ta.addEventListener('keydown', fn),
     focus: () => ta.focus(),
     refresh: () => {},

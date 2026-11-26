@@ -16,6 +16,7 @@ const SYM = {
   '⋈': 'JOIN', '⨝': 'JOIN', '×': 'CROSS', '⨯': 'CROSS', '∪': 'UNION', '∩': 'INTERSECT', '−': 'MINUS', '÷': 'DIVIDE',
   '⟕': 'LJOIN', '⟖': 'RJOIN', '⟗': 'FJOIN', '∧': 'AND', '∨': 'OR', '¬': 'NOT',
   '≠': 'NE', '≤': 'LE', '≥': 'GE', '←': 'ASSIGN', '→': 'ARROW',
+  'ℑ': 'FGAMMA', 'ℱ': 'FGAMMA', '𝓕': 'FGAMMA',
 };
 const WORDS = {
   sigma: 'SIGMA', pi: 'PI', rho: 'RHO', gamma: 'GAMMA', tau: 'TAU', join: 'JOIN', union: 'UNION', intersect: 'INTERSECT',
@@ -33,6 +34,8 @@ function tokenize(src) {
     if (c === '-' && src[i + 1] === '-') { while (i < n && src[i] !== '\n') i++; continue; }
     if (c === '/' && src[i + 1] === '*') { const j = src.indexOf('*/', i + 2); i = j < 0 ? n : j + 2; continue; }
     if (SYM[c]) { push(SYM[c], c, i); i++; continue; }
+    const cp = src.codePointAt(i);
+    if (cp > 0xffff && SYM[String.fromCodePoint(cp)]) { push(SYM[String.fromCodePoint(cp)], String.fromCodePoint(cp), i); i += 2; continue; }
     if (c === "'" || c === '"') {
       let j = i + 1, s = '';
       while (j < n && src[j] !== c) { s += src[j]; j++; }
@@ -135,7 +138,7 @@ class Parser {
       const op = this.next().type;
       let cond = null;
       if (op !== 'CROSS') {
-        if (this.accept('LB')) { cond = this.cond(); this.expect('RB', ']'); }
+        if (this.accept('LB')) { cond = this.cond(); this.expect('RB', '] fechando a condição da junção'); }
         else if (this.looksLikeCond()) cond = this.cond();
       }
       left = { op, l: left, r: this.unary(), cond };
@@ -173,31 +176,46 @@ class Parser {
       case 'SIGMA': {
         this.next(); this.subscriptStart();
         let cond;
-        if (this.accept('LB')) { cond = this.cond(); this.expect('RB', ']'); } else cond = this.cond();
+        if (this.accept('LB')) { cond = this.cond(); this.expect('RB', '] fechando o σ[…]'); } else cond = this.cond();
         return { op: 'SELECT', cond, e: this.operand() };
       }
       case 'PI': {
         this.next(); this.subscriptStart();
-        const items = this.listMaybeParen(() => this.projItem());
+        const items = this.bracketed(() => this.list(() => this.projItem()), 'π') || this.listMaybeParen(() => this.projItem());
         return { op: 'PROJECT', items, e: this.operand() };
       }
       case 'TAU': {
         this.next(); this.subscriptStart();
-        const items = this.listMaybeParen(() => {
+        const sortItem = () => {
           const a = this.attrRef();
           let dir = 'ASC';
           if (this.accept('DESC')) dir = 'DESC'; else this.accept('ASC');
           return { a, dir };
-        });
+        };
+        const items = this.bracketed(() => this.list(sortItem), 'τ') || this.listMaybeParen(sortItem);
         return { op: 'SORT', items, e: this.operand() };
       }
       case 'RHO': {
         this.next(); this.subscriptStart();
+        if (this.accept('LB')) {
+          const r = this.renameSpec(true);
+          this.expect('RB', '] fechando o ρ[…]');
+          return { ...r, e: this.operand() };
+        }
         return this.rename();
       }
       case 'GAMMA': {
         this.next(); this.subscriptStart();
+        if (this.accept('LB')) {
+          const g = this.gammaSpec();
+          this.expect('RB', '] fechando o γ[…]');
+          return { op: 'GROUP', ...g, e: this.operand() };
+        }
         return this.gamma();
+      }
+      case 'FGAMMA': { // notação de aula sem agrupamento: ℑ COUNT(*) (R)
+        this.next();
+        return this.fgammaRest([]);
       }
       case 'LP': {
         this.next();
@@ -205,9 +223,25 @@ class Parser {
         this.expect('RP', ')');
         return e;
       }
-      case 'ID':
+      case 'ID': {
+        // notação de aula: dnum ℑ COUNT(mat) (R)  — atributos de grupo à esquerda do ℑ
+        let k = 0;
+        while (this.is('ID', k)) {
+          k++;
+          if (this.is('DOT', k) && this.is('ID', k + 1)) k += 2;
+          if (this.is('FGAMMA', k)) break;
+          if (this.is('COMMA', k)) { k++; continue; }
+          break;
+        }
+        if (this.is('FGAMMA', k)) {
+          const groups = [this.attrRef()];
+          while (this.accept('COMMA')) groups.push(this.attrRef());
+          this.expect('FGAMMA', 'ℑ');
+          return this.fgammaRest(groups);
+        }
         this.next();
         return { op: 'REL', name: tk.value };
+      }
       default:
         throw new RAError(`Esperava uma relação ou operador mas encontrei "${tk.value || 'fim da expressão'}".`);
     }
@@ -217,9 +251,78 @@ class Parser {
     if (this.is('ID') && this.peek().value === '_') this.next();
   }
 
+  // [ … ] logo após o operador: o "subscrito" do papel
+  bracketed(fn, opName) {
+    if (!this.accept('LB')) return null;
+    const v = fn();
+    this.expect('RB', `] fechando o ${opName}[…]`);
+    return v;
+  }
+  list(item) {
+    const items = [item()];
+    while (this.accept('COMMA')) items.push(item());
+    return items;
+  }
+
+  // dentro de ρ[…]: X | X(a, b) | novo ← velho, … | velho → novo, …
+  renameSpec() {
+    if (this.is('ID') && (this.is('ASSIGN', 1) || this.is('ARROW', 1) || (this.is('DOT', 1) && (this.is('ASSIGN', 3) || this.is('ARROW', 3))))) {
+      const pairs = [];
+      do {
+        const a = this.attrRef();
+        const arrow = this.next().type;
+        if (arrow !== 'ASSIGN' && arrow !== 'ARROW') throw new RAError('Em ρ[…] use novo ← velho (ou velho → novo).');
+        const b = this.attrRef();
+        pairs.push(arrow === 'ASSIGN' ? { to: a.name, from: b } : { to: b.name, from: a });
+      } while (this.accept('COMMA'));
+      return { op: 'RENAME_ATTR', pairs };
+    }
+    const name = this.expect('ID', 'novo nome da relação').value;
+    let attrs = null;
+    if (this.accept('LP')) { attrs = this.list(() => this.expect('ID', 'nome de atributo').value); this.expect('RP', ')'); }
+    return { op: 'RENAME_REL', name, attrs };
+  }
+
+  // dentro de γ[…]: grupos; funções   (o ";" é opcional: funções são reconhecidas pelo nome)
+  aggItem() {
+    if (this.is('ID') && this.is('LP', 1) && /^(count|sum|avg|min|max)$/i.test(this.peek().value)) {
+      const fn = this.next().value.toUpperCase(); this.next();
+      let distinct = false;
+      if (this.is('ID') && /^distinct$/i.test(this.peek().value)) { this.next(); distinct = true; }
+      const arg = this.accept('STAR') ? '*' : this.attrRef();
+      this.expect('RP', ')');
+      let alias = null;
+      if (this.accept('ARROW')) alias = this.expect('ID', 'nome do resultado').value;
+      return { fn, arg, distinct, alias: alias || (fn.toLowerCase() + (arg === '*' ? '' : '_' + arg.name)) };
+    }
+    return null;
+  }
+  gammaSpec() {
+    const groups = [], aggs = [];
+    const one = () => { const a = this.aggItem(); if (a) aggs.push(a); else groups.push(this.attrRef()); };
+    if (!this.is('SEMI') && !this.is('RB')) { one(); while (this.accept('COMMA')) one(); }
+    if (this.accept('SEMI')) { one(); while (this.accept('COMMA')) one(); }
+    if (!aggs.length && !groups.length) throw new RAError('γ[…] precisa de atributos de agrupamento e/ou funções (count, sum, avg, min, max).');
+    return { groups, aggs };
+  }
+  // depois do ℑ: funções, com ou sem colchetes, e o operando
+  fgammaRest(groups) {
+    const parseAggs = () => {
+      const aggs = [];
+      do {
+        const a = this.aggItem();
+        if (!a) throw new RAError('Depois do ℑ vêm as funções de agregação: COUNT(x), SUM(x), AVG(x), MIN(x), MAX(x).');
+        aggs.push(a);
+      } while (this.accept('COMMA'));
+      return aggs;
+    };
+    const aggs = this.bracketed(parseAggs, 'ℑ') || parseAggs();
+    return { op: 'GROUP', groups, aggs, e: this.operand() };
+  }
+
   operand() {
-    if (this.is('LP') || this.is('ID') || ['SIGMA', 'PI', 'RHO', 'GAMMA', 'TAU'].includes(this.peek().type)) return this.unary();
-    throw new RAError(`Faltou a relação (entre parênteses) depois do operador. Encontrei "${this.peek().value || 'fim'}".`);
+    if (this.is('LP') || this.is('ID') || ['SIGMA', 'PI', 'RHO', 'GAMMA', 'TAU', 'FGAMMA'].includes(this.peek().type)) return this.unary();
+    throw new RAError(`Faltou a relação depois do operador, entre parênteses: ex. σ[cond](EMPREGADO). Encontrei "${this.peek().value || 'fim'}".`);
   }
 
   listMaybeParen(item) {
@@ -531,7 +634,7 @@ export function translate(src, catalog, schema) {
         const parts = gi.map((i, k) => `t.c${i + 1} AS c${k + 1}`);
         node.aggs.forEach((a, k) => {
           const arg = a.arg === '*' ? '*' : `t.c${resolve(s.cols, a.arg) + 1}`;
-          parts.push(`${a.fn}(${arg}) AS c${gi.length + k + 1}`);
+          parts.push(`${a.fn}(${a.distinct ? 'DISTINCT ' : ''}${arg}) AS c${gi.length + k + 1}`);
         });
         return {
           sql: `SELECT ${parts.join(', ')} FROM (${s.sql}) t${gi.length ? ' GROUP BY ' + gi.map((i) => `t.c${i + 1}`).join(', ') : ''}`,
@@ -570,10 +673,76 @@ export async function loadCatalog(queryFn, schema) {
   return cat;
 }
 
-export const RA_SYMBOLS = [
-  ['σ', 'seleção: σ cond (R)'], ['π', 'projeção: π a, b (R)'], ['ρ', 'renomear: ρ X (R) ou ρ novo←velho (R)'],
-  ['⋈', 'junção: R ⋈ cond S  ou natural: R ⋈ S'], ['×', 'produto cartesiano'], ['∪', 'união'], ['∩', 'interseção'],
-  ['−', 'diferença'], ['÷', 'divisão'], ['γ', 'agregação: γ g; count(*)→n (R)'], ['⟕', 'junção externa à esquerda'],
-  ['⟖', 'junção externa à direita'], ['⟗', 'junção externa completa'], ['∧', 'e'], ['∨', 'ou'], ['¬', 'não'],
-  ['≠', 'diferente'], ['≤', 'menor ou igual'], ['≥', 'maior ou igual'], ['←', 'atribuição / renomear'], ['→', 'alias'],
+// ---------------- notação "de papel" (com subscritos) ----------------
+const esc = (t) => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+const CMP = { '=': '=', '<>': '≠', '<': '<', '>': '>', '<=': '≤', '>=': '≥' };
+const refTxt = (r) => (r.rel ? r.rel + '.' : '') + r.name;
+function arithTxt(a) {
+  if (a.num !== undefined) return a.num;
+  if (a.str !== undefined) return `'${a.str}'`;
+  if (a.nul) return 'NULL';
+  if (a.ref) return refTxt(a.ref);
+  if (a.arith) return `${arithTxt(a.l)} ${a.arith === '*' ? '×' : a.arith} ${arithTxt(a.r)}`;
+  return '?';
+}
+function condTxt(c, parent) {
+  if (c.bool === 'AND' || c.bool === 'OR') {
+    const t = `${condTxt(c.l, c.bool)} ${c.bool === 'AND' ? '∧' : '∨'} ${condTxt(c.r, c.bool)}`;
+    return parent && parent !== c.bool ? `(${t})` : t;
+  }
+  if (c.bool === 'NOT') return `¬${c.e.cmp ? '(' + condTxt(c.e) + ')' : condTxt(c.e, 'NOT')}`;
+  if (c.cmp) {
+    if (c.r.nul) return `${arithTxt(c.l)} ${c.cmp === '=' ? 'é' : 'não é'} nulo`;
+    return `${arithTxt(c.l)} ${CMP[c.cmp]} ${arithTxt(c.r)}`;
+  }
+  return '?';
+}
+const aggTxt = (a) => `${a.fn}(${a.distinct ? 'DISTINCT ' : ''}${a.arg === '*' ? '*' : refTxt(a.arg)})` + (a.alias && !/^(count|sum|avg|min|max)(_|$)/.test(a.alias) ? ` → ${a.alias}` : '');
+const BIN = { JOIN: '⋈', CROSS: '×', LJOIN: '⟕', RJOIN: '⟖', FJOIN: '⟗', UNION: '∪', INTERSECT: '∩', MINUS: '−', DIVIDE: '÷' };
+const sub = (t) => `<sub>${esc(t)}</sub>`;
+function nodeHTML(n) {
+  const arg = (e) => `(${nodeHTML(e)})`;
+  switch (n.op) {
+    case 'REL': return `<span class="ra-rel">${esc(n.name)}</span>`;
+    case 'SELECT': return `<span class="ra-op">σ</span>${sub(condTxt(n.cond))}${arg(n.e)}`;
+    case 'PROJECT': return `<span class="ra-op">π</span>${sub(n.items.map((it) => arithTxt(it.e) + (it.alias ? ' → ' + it.alias : '')).join(', '))}${arg(n.e)}`;
+    case 'SORT': return `<span class="ra-op">τ</span>${sub(n.items.map((it) => refTxt(it.a) + (it.dir === 'DESC' ? ' desc' : '')).join(', '))}${arg(n.e)}`;
+    case 'RENAME_REL': return `<span class="ra-op">ρ</span>${sub(n.name + (n.attrs ? '(' + n.attrs.join(', ') + ')' : ''))}${arg(n.e)}`;
+    case 'RENAME_ATTR': return `<span class="ra-op">ρ</span>${sub(n.pairs.map((p) => p.to + ' ← ' + refTxt(p.from)).join(', '))}${arg(n.e)}`;
+    case 'GROUP': return `${n.groups.length ? sub(n.groups.map(refTxt).join(', ')) : ''}<span class="ra-op">ℑ</span>${sub(n.aggs.map(aggTxt).join(', '))}${arg(n.e)}`;
+    default: {
+      if (!BIN[n.op]) return '?';
+      const side = (e) => (BIN[e.op] ? `(${nodeHTML(e)})` : nodeHTML(e));
+      return `${side(n.l)} <span class="ra-op">${BIN[n.op]}</span>${n.cond ? sub(condTxt(n.cond)) : ''} ${side(n.r)}`;
+    }
+  }
+}
+
+/** Mostra a expressão como se escreve no papel (subscritos). Lança RAError se não for válida. */
+export function renderRA(src) {
+  const stmts = new Parser(tokenize(src)).program();
+  return stmts.map((st) => `<div class="ra-line">${st.assign ? `<span class="ra-rel">${esc(st.assign)}${st.attrs ? '(' + esc(st.attrs.join(', ')) + ')' : ''}</span> <span class="ra-op">←</span> ` : ''}${nodeHTML(st.expr)}</div>`).join('');
+}
+
+// [símbolo, ajuda, modelo inserido, quantos caracteres voltar o cursor]
+export const RA_OPS = [
+  ['σ', 'seleção — σ[condição](R)', 'σ[]()', 3],
+  ['π', 'projeção — π[a, b](R)', 'π[]()', 3],
+  ['ρ', 'renomear — ρ[X](R) · ρ[X(a, b)](R) · ρ[novo ← velho](R)', 'ρ[]()', 3],
+  ['⋈', 'junção — R ⋈[condição] S · natural: R ⋈ S', ' ⋈[] ', 2],
+  ['×', 'produto cartesiano — R × S', ' × ', 0],
+  ['∪', 'união — R ∪ S', ' ∪ ', 0],
+  ['∩', 'interseção — R ∩ S', ' ∩ ', 0],
+  ['−', 'diferença — R − S', ' − ', 0],
+  ['÷', 'divisão — R ÷ S', ' ÷ ', 0],
+  ['ℑ', 'agregação (notação de aula) — dnum ℑ[COUNT(*) → qtd](R)', ' ℑ[]()', 3],
+  ['γ', 'agregação — γ[dnum; COUNT(*) → qtd](R)', 'γ[]()', 3],
+  ['⟕', 'junção externa à esquerda — R ⟕[condição] S', ' ⟕[] ', 2],
+  ['⟖', 'junção externa à direita — R ⟖[condição] S', ' ⟖[] ', 2],
+  ['⟗', 'junção externa completa — R ⟗[condição] S', ' ⟗[] ', 2],
+  ['←', 'atribuição — T ← expressão (uma por linha)', ' ← ', 0],
 ];
+export const RA_LOGIC = [
+  ['∧', 'e'], ['∨', 'ou'], ['¬', 'não'], ['≠', 'diferente'], ['≤', 'menor ou igual'], ['≥', 'maior ou igual'], ['→', 'dar nome: COUNT(*) → qtd'],
+];
+
