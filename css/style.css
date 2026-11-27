@@ -656,3 +656,20 @@ body.scare-shake { animation: scare-shake .08s linear infinite; }
 .sim-rev { padding: 12px 0; border-bottom: 1px solid var(--border); }
 .sim-rev:last-child { border-bottom: 0; }
 @media (max-width: 600px) { .sim-opts.tf { grid-template-columns: 1fr; } .sim-card { padding: 16px; } }
+.sim-modes { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 8px; margin-bottom: 6px; }
+.sim-mode { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; text-align: left; font: inherit; color: var(--text); background: var(--layer-2); border: 1px solid var(--border); padding: 10px 14px; cursor: pointer; }
+.sim-mode:hover { border-color: var(--accent); }
+.sim-mode.on { border-color: var(--accent); background: var(--accent-soft); box-shadow: inset 3px 0 0 var(--accent); }
+.sim-setup .panel-title + .sim-topics { margin-top: 0; }
+.sim-setup .sim-modes + p { margin-bottom: 18px; }
+.sim-db { margin: 6px 0 10px; font-size: .85rem; }
+.sim-db summary { cursor: pointer; color: var(--text-2); }
+.sim-db .statement { margin-top: 6px; font-size: .82rem; }
+.sim-editor .CodeMirror { height: auto; min-height: 190px; }
+.sim-editor .CodeMirror-scroll { min-height: 190px; }
+.sim-editor textarea { width: 100%; min-height: 190px; font-family: var(--mono); }
+.sim-sol { margin-top: 10px; }
+.sim-sol summary { cursor: pointer; font-weight: 600; font-size: .85rem; }
+.sim-mine { border-style: dashed; }
+.err-text { color: var(--err); }
+.sim-editor { border: 1px solid var(--border); margin-top: 6px; }
