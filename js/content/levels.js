@@ -3,6 +3,28 @@
 
 const S_CARD = (a, b, r = 'relacionamento') => `Para cada lado pergunte: “um(a) <b>${a}</b> se associa a quantos(as) <b>${b}</b>?” e escreva a resposta <b>junto a ${b}</b>. Depois inverta (${b} → ${a}). Use o painel do ${r} para ver a frase de leitura.`;
 
+// Roteiro padrão de trigger em 6 passos (Mundo 7).
+const ECA = (evento, momento, cond, acao) => `<table class="tbl">
+<tr><th>Evento</th><td>${evento}</td></tr>
+<tr><th>Momento</th><td>${momento}</td></tr>
+<tr><th>Condição</th><td>${cond}</td></tr>
+<tr><th>Ação</th><td>${acao}</td></tr></table>`;
+const TG_TEST = '<p class="muted small">Use <b>Executar</b> para testar. Antes de <b>Enviar</b>, apague as linhas de teste e deixe só a função e o <code>CREATE TRIGGER</code>: o corretor roda os testes num banco limpo por você.</p>';
+const TG = ({ eca, func, logic, ret, trig, test }) => [
+  { t: 'Entenda a regra (Evento – Condição – Ação)', html: eca },
+  { t: 'Escreva o esqueleto da função', html: func },
+  { t: 'Escreva a lógica', html: logic },
+  { t: 'Escolha o retorno', html: ret },
+  { t: 'Crie o gatilho', html: trig },
+  { t: 'Teste você mesmo', html: test + TG_TEST },
+];
+const SKEL = (nome, ret = 'NEW', decl = '') => `<pre>CREATE OR REPLACE FUNCTION ${nome}() RETURNS trigger AS $$
+${decl}BEGIN
+  -- (passo 3) a lógica entra aqui
+  RETURN ${ret};
+END;
+$$ LANGUAGE plpgsql;</pre>`;
+
 export const WORLDS = [
 // =====================================================================
 {
@@ -770,7 +792,23 @@ WITH CHECK OPTION;`,
     {
       id: '7-1', type: 'sql', db: 'empresa', mode: 'script', diff: 1, title: 'Validação com BEFORE', desc: 'RAISE EXCEPTION.',
       intro: '<p>Crie a função <code>emp.emp_stamp()</code> e o gatilho <code>emp_stamp</code> (BEFORE INSERT OR UPDATE, FOR EACH ROW) em <code>emp.empregado</code> que rejeitem salário <b>nulo</b> ou <b>negativo</b>.</p>',
-      steps: [{ t: 'Função', html: '<pre>CREATE OR REPLACE FUNCTION emp.emp_stamp() RETURNS trigger AS $$\nBEGIN\n  IF NEW.salario IS NULL THEN\n    RAISE EXCEPTION \'salario nao pode ser nulo\';\n  END IF;\n  ...\n  RETURN NEW;\nEND; $$ LANGUAGE plpgsql;</pre>' }, { t: 'Gatilho', html: '<code>CREATE TRIGGER emp_stamp BEFORE INSERT OR UPDATE ON emp.empregado FOR EACH ROW EXECUTE PROCEDURE emp.emp_stamp();</code>' }, { t: 'Não esqueça', html: '<code>RETURN NEW</code> — sem ele, o BEFORE cancela a gravação.' }],
+      steps: TG({
+        eca: ECA('<code>INSERT</code> ou <code>UPDATE</code> em <code>emp.empregado</code>', '<b>BEFORE</b>, <b>FOR EACH ROW</b>: a linha tem que ser barrada antes de ser gravada', 'salário nulo <b>ou</b> negativo', '<code>RAISE EXCEPTION</code>, que aborta o comando') +
+          '<p>Para escolher o momento, pergunte: <i>“preciso impedir ou alterar a linha?”</i> → BEFORE. <i>“só reagir depois que gravou?”</i> → AFTER.</p>',
+        func: SKEL('emp.emp_stamp') + '<p>A função não recebe parâmetros e retorna <code>trigger</code>. Dentro dela, <code>NEW</code> é a linha que está chegando (no INSERT) ou a versão nova dela (no UPDATE).</p>',
+        logic: `<pre>  IF NEW.salario IS NULL THEN
+    RAISE EXCEPTION 'salario nao pode ser nulo';
+  END IF;
+  IF NEW.salario &lt; 0 THEN
+    RAISE EXCEPTION 'salario tem que ser > 0';
+  END IF;</pre><p>Teste o nulo com <code>IS NULL</code>. <code>NEW.salario &lt; 0</code> com salário nulo dá <i>nulo</i>, não verdadeiro, e o IF não dispara.</p>`,
+        ret: '<p><code>RETURN NEW;</code> Em BEFORE ROW, a linha que você retorna é a que será gravada. Com <code>RETURN NULL</code>, até as linhas válidas seriam descartadas em silêncio.</p>',
+        trig: `<pre>CREATE TRIGGER emp_stamp BEFORE INSERT OR UPDATE ON emp.empregado
+  FOR EACH ROW EXECUTE PROCEDURE emp.emp_stamp();</pre><p>Ordem: primeiro a função, depois o gatilho que a chama.</p>`,
+        test: `<pre>INSERT INTO emp.empregado (nome, snome, matricula, salario, depto)
+  VALUES ('Ana','Lima','020', -5, 'DES');                    -- deve dar ERRO
+UPDATE emp.empregado SET salario = 1100 WHERE matricula = '005'; -- deve funcionar</pre>`,
+      }),
       solution: `CREATE OR REPLACE FUNCTION emp.emp_stamp() RETURNS trigger AS $$
 BEGIN
   IF NEW.salario IS NULL THEN
@@ -797,6 +835,19 @@ CREATE TRIGGER emp_stamp BEFORE INSERT OR UPDATE ON emp.empregado
     {
       id: '7-2', type: 'sql', db: 'empresa', mode: 'script', diff: 1, title: 'Irredutibilidade salarial', desc: 'OLD × NEW.',
       intro: '<p>Garanta com um gatilho que <b>nenhum salário seja reduzido</b> (BEFORE UPDATE). Aumentos e atualizações de outras colunas devem continuar funcionando.</p>',
+      steps: TG({
+        eca: ECA('<code>UPDATE</code> em <code>emp.empregado</code>', '<b>BEFORE ROW</b>: barrar antes de gravar', 'salário novo menor que o antigo', '<code>RAISE EXCEPTION</code>') +
+          '<p>Para comparar <i>antes</i> com <i>depois</i> você precisa das duas versões da linha, que só existem juntas no UPDATE.</p>',
+        func: SKEL('emp.vsalario'),
+        logic: `<pre>  IF NEW.salario &lt; OLD.salario THEN
+    RAISE EXCEPTION 'NAO SE PODE DIMINUIR SALARIO';
+  END IF;</pre><p><code>OLD</code> é a linha como está no banco; <code>NEW</code> é como ela vai ficar.</p>`,
+        ret: '<p><code>RETURN NEW;</code> Assim aumentos e mudanças em outras colunas (endereço, por exemplo) são gravados normalmente.</p>',
+        trig: `<pre>CREATE TRIGGER atuemp BEFORE UPDATE ON emp.empregado
+  FOR EACH ROW EXECUTE PROCEDURE emp.vsalario();</pre><p>Variante: <code>BEFORE UPDATE OF salario</code> só dispara quando a coluna <code>salario</code> aparece no SET.</p>`,
+        test: `<pre>UPDATE emp.empregado SET salario = salario - 1   WHERE matricula = '004'; -- ERRO
+UPDATE emp.empregado SET salario = salario + 100 WHERE matricula = '004'; -- ok</pre>`,
+      }),
       solution: `CREATE OR REPLACE FUNCTION emp.vsalario() RETURNS trigger AS $$
 BEGIN
   IF NEW.salario < OLD.salario THEN
@@ -817,7 +868,24 @@ CREATE TRIGGER atuemp BEFORE UPDATE ON emp.empregado
     {
       id: '7-3', type: 'sql', db: 'empresa', mode: 'script', diff: 2, title: 'Não ganhar mais que o chefe', desc: 'Consulta dentro do gatilho.',
       intro: '<p>Um empregado <b>não pode ter salário superior ao do seu supervisor</b> (<code>supermat</code>). Valide em INSERT e UPDATE.</p>',
-      steps: [{ t: 'Buscar o salário do chefe', html: '<code>(SELECT salario FROM emp.empregado e WHERE e.matricula = NEW.supermat)</code>' }, { t: 'Sem supervisor', html: 'Se <code>supermat</code> for nulo a comparação dá nulo (não dispara) — ok.' }],
+      steps: TG({
+        eca: ECA('<code>INSERT</code> ou <code>UPDATE</code> em <code>emp.empregado</code>', '<b>BEFORE ROW</b>', 'salário novo maior que o salário do supervisor (<code>NEW.supermat</code>)', '<code>RAISE EXCEPTION</code>') +
+          '<p>A novidade aqui é que a condição depende de <b>outra linha</b> (a do chefe), então a função precisa consultar a tabela.</p>',
+        func: SKEL('emp.vsalariosup'),
+        logic: `<p>Jeito 1, com subconsulta escalar direto no IF:</p><pre>  IF NEW.salario > (SELECT salario FROM emp.empregado e
+                    WHERE e.matricula = NEW.supermat) THEN
+    RAISE EXCEPTION 'emp % nao pode ter salario superior ao do chefe', NEW.nome;
+  END IF;</pre><p>Jeito 2, com variável (o <code>DECLARE</code> fica antes do BEGIN):</p><pre>DECLARE
+  sal_chefe numeric;
+BEGIN
+  SELECT salario INTO sal_chefe FROM emp.empregado WHERE matricula = NEW.supermat;
+  IF NEW.salario > sal_chefe THEN ... END IF;</pre><p>Sem supervisor, a subconsulta dá nulo, a comparação dá nulo e o IF não dispara. Por isso a Maria (sem chefe) pode ganhar quanto quiser.</p>`,
+        ret: '<p><code>RETURN NEW;</code></p>',
+        trig: `<pre>CREATE TRIGGER atuemp2 BEFORE INSERT OR UPDATE ON emp.empregado
+  FOR EACH ROW EXECUTE PROCEDURE emp.vsalariosup();</pre>`,
+        test: `<pre>UPDATE emp.empregado SET salario = 3000 WHERE matricula = '004'; -- ERRO (chefe 002 ganha 2000)
+UPDATE emp.empregado SET salario = 1500 WHERE matricula = '004'; -- ok</pre>`,
+      }),
       solution: `CREATE OR REPLACE FUNCTION emp.vsalariosup() RETURNS trigger AS $$
 BEGIN
   IF NEW.salario > (SELECT salario FROM emp.empregado e WHERE e.matricula = NEW.supermat) THEN
@@ -839,6 +907,19 @@ CREATE TRIGGER atuemp2 BEFORE INSERT OR UPDATE ON emp.empregado
     {
       id: '7-4', type: 'sql', db: 'empresa', mode: 'script', diff: 2, title: 'Supervisor do mesmo departamento', desc: 'Exercício feito em aula.',
       intro: '<p>Um empregado <b>não pode ser supervisionado por alguém de outro departamento</b>. Valide em INSERT e UPDATE de <code>emp.empregado</code>.</p>',
+      steps: TG({
+        eca: ECA('<code>INSERT</code> ou <code>UPDATE</code> em <code>emp.empregado</code>', '<b>BEFORE ROW</b>', 'o depto do empregado é diferente do depto do supervisor', '<code>RAISE EXCEPTION</code>'),
+        func: SKEL('emp.empsupdeptigual'),
+        logic: `<pre>  IF NEW.depto &lt;> (SELECT depto FROM emp.empregado e
+                  WHERE e.matricula = NEW.supermat) THEN
+    RAISE EXCEPTION 'Empregado % nao pode pertencer ao departamento %', NEW.nome, NEW.depto;
+  END IF;</pre><p>Mesmo padrão do 7-3: uma subconsulta busca um dado do supervisor. Cada <code>%</code> da mensagem é trocado pelos valores depois da vírgula, na ordem.</p>`,
+        ret: '<p><code>RETURN NEW;</code> Sem supervisor, a comparação dá nulo e a linha passa.</p>',
+        trig: `<pre>CREATE TRIGGER empsupdeptigual BEFORE INSERT OR UPDATE ON emp.empregado
+  FOR EACH ROW EXECUTE PROCEDURE emp.empsupdeptigual();</pre>`,
+        test: `<pre>UPDATE emp.empregado SET depto = 'PROD' WHERE matricula = '004'; -- ERRO (chefe 002 é da DG)
+UPDATE emp.empregado SET depto = 'DG'   WHERE matricula = '004'; -- ok</pre>`,
+      }),
       solution: `CREATE OR REPLACE FUNCTION emp.empsupdeptigual() RETURNS trigger AS $$
 BEGIN
   IF NEW.depto <> (SELECT depto FROM emp.empregado e WHERE e.matricula = NEW.supermat) THEN
@@ -860,7 +941,20 @@ CREATE TRIGGER empsupdeptigual BEFORE INSERT OR UPDATE ON emp.empregado
       id: '7-5', type: 'sql', db: 'empresa', mode: 'script', diff: 2, title: 'Auditoria com AFTER', desc: 'Gravar log de alterações.',
       intro: '<p>A tabela <code>emp.log_salario(matricula, antigo, novo, quando)</code> já existe. Crie um gatilho <b>AFTER UPDATE</b> que registre uma linha no log <b>somente quando o salário mudar</b>.</p>',
       setup: 'CREATE TABLE emp.log_salario (matricula char(9), antigo numeric(10,2), novo numeric(10,2), quando timestamp DEFAULT now());',
-      steps: [{ t: 'Condição', html: 'Use <code>IF NEW.salario IS DISTINCT FROM OLD.salario THEN … END IF;</code> na função, ou <code>WHEN (OLD.salario IS DISTINCT FROM NEW.salario)</code> no CREATE TRIGGER.' }, { t: 'Retorno', html: 'Em AFTER o retorno é ignorado: <code>RETURN NULL;</code>' }],
+      steps: TG({
+        eca: ECA('<code>UPDATE</code> em <code>emp.empregado</code>', '<b>AFTER ROW</b>: o log é uma reação, só registra o que já foi gravado', 'o salário mudou', '<code>INSERT</code> em <code>emp.log_salario</code>') +
+          '<p>Auditoria e log são o caso típico de AFTER: não há nada a barrar.</p>',
+        func: SKEL('emp.fn_log_salario', 'NULL'),
+        logic: `<pre>  INSERT INTO emp.log_salario (matricula, antigo, novo)
+    VALUES (OLD.matricula, OLD.salario, NEW.salario);</pre><p>A coluna <code>quando</code> tem <code>DEFAULT now()</code>, então não precisa ser informada.</p>`,
+        ret: '<p>Em AFTER o retorno é ignorado: use <code>RETURN NULL;</code></p>',
+        trig: `<p>A condição “só quando o salário mudar” pode ficar no próprio gatilho, com <code>WHEN</code>:</p><pre>CREATE TRIGGER tg_log_salario AFTER UPDATE ON emp.empregado
+  FOR EACH ROW WHEN (OLD.salario IS DISTINCT FROM NEW.salario)
+  EXECUTE PROCEDURE emp.fn_log_salario();</pre><p>Ou fica na função: <code>IF NEW.salario IS DISTINCT FROM OLD.salario THEN INSERT … END IF;</code>. Use <code>IS DISTINCT FROM</code> e não <code>&lt;></code>, porque <code>&lt;></code> com nulo dá nulo.</p>`,
+        test: `<pre>UPDATE emp.empregado SET salario = 950     WHERE matricula = '005'; -- gera log
+UPDATE emp.empregado SET endereco = 'Rua B' WHERE matricula = '006'; -- não gera
+SELECT * FROM emp.log_salario;                                      -- 1 linha</pre>`,
+      }),
       solution: `CREATE OR REPLACE FUNCTION emp.fn_log_salario() RETURNS trigger AS $$
 BEGIN
   INSERT INTO emp.log_salario (matricula, antigo, novo) VALUES (OLD.matricula, OLD.salario, NEW.salario);
@@ -881,7 +975,25 @@ CREATE TRIGGER tg_log_salario AFTER UPDATE ON emp.empregado
       id: '7-6', type: 'sql', db: 'empresa', mode: 'script', diff: 3, title: 'Manter um total derivado', desc: 'INSERT/UPDATE/DELETE e TG_OP.',
       intro: '<p>A coluna <code>emp.projeto.total_horas</code> já existe e está correta. Crie um gatilho em <code>emp.trabalha_em</code> que a mantenha atualizada em <b>INSERT, UPDATE e DELETE</b>.</p>',
       setup: 'ALTER TABLE emp.projeto ADD COLUMN total_horas numeric(6,1) DEFAULT 0;\nUPDATE emp.projeto p SET total_horas = (SELECT COALESCE(SUM(horas),0) FROM emp.trabalha_em t WHERE t.pcodigo = p.pcodigo);',
-      steps: [{ t: 'Uma função para três eventos', html: 'Use <code>TG_OP</code>: em INSERT some NEW.horas; em DELETE subtraia OLD.horas; em UPDATE faça as duas coisas (o projeto pode ter mudado).' }, { t: 'Alternativa simples', html: 'Recalcular: <code>UPDATE emp.projeto SET total_horas = (SELECT COALESCE(SUM(horas),0) …)</code> para o(s) projeto(s) afetado(s).' }],
+      steps: TG({
+        eca: ECA('<code>INSERT</code>, <code>UPDATE</code> ou <code>DELETE</code> em <code>emp.trabalha_em</code>', '<b>AFTER ROW</b>: atualiza outra tabela depois que a alocação mudou', 'sempre', 'somar/subtrair horas em <code>emp.projeto.total_horas</code>') +
+          '<p>Quando três eventos usam a mesma função, a variável <code>TG_OP</code> diz qual deles disparou: <code>\'INSERT\'</code>, <code>\'UPDATE\'</code> ou <code>\'DELETE\'</code>.</p>',
+        func: SKEL('emp.fn_total_horas', 'NULL'),
+        logic: `<pre>  IF TG_OP IN ('INSERT', 'UPDATE') THEN
+    UPDATE emp.projeto SET total_horas = total_horas + NEW.horas
+     WHERE pcodigo = NEW.pcodigo;
+  END IF;
+  IF TG_OP IN ('DELETE', 'UPDATE') THEN
+    UPDATE emp.projeto SET total_horas = total_horas - OLD.horas
+     WHERE pcodigo = OLD.pcodigo;
+  END IF;</pre><p>Pense no UPDATE como “remover a linha antiga e inserir a nova”, já que a alocação pode ter mudado de projeto. No INSERT não existe OLD; no DELETE não existe NEW.</p><p>Alternativa mais simples: recalcular do zero com <code>SET total_horas = (SELECT COALESCE(SUM(horas),0) FROM emp.trabalha_em t WHERE t.pcodigo = …)</code> para o(s) projeto(s) afetado(s).</p>`,
+        ret: '<p><code>RETURN NULL;</code> (AFTER)</p>',
+        trig: `<pre>CREATE TRIGGER tg_total_horas AFTER INSERT OR UPDATE OR DELETE ON emp.trabalha_em
+  FOR EACH ROW EXECUTE PROCEDURE emp.fn_total_horas();</pre>`,
+        test: `<pre>SELECT pcodigo, total_horas FROM emp.projeto ORDER BY 1;  -- antes
+INSERT INTO emp.trabalha_em VALUES ('001', 1, 10);
+SELECT pcodigo, total_horas FROM emp.projeto ORDER BY 1;  -- projeto 1 com +10</pre>`,
+      }),
       solution: `CREATE OR REPLACE FUNCTION emp.fn_total_horas() RETURNS trigger AS $$
 BEGIN
   IF TG_OP IN ('INSERT', 'UPDATE') THEN
@@ -906,6 +1018,19 @@ CREATE TRIGGER tg_total_horas AFTER INSERT OR UPDATE OR DELETE ON emp.trabalha_e
     {
       id: '7-7', type: 'sql', db: 'empresa', mode: 'script', diff: 2, title: 'Limite de projetos por empregado', desc: 'Contagem antes de inserir.',
       intro: '<p>Um empregado pode estar alocado em <b>no máximo 2 projetos</b>. Impeça inserções em <code>emp.trabalha_em</code> que violem a regra.</p>',
+      steps: TG({
+        eca: ECA('<code>INSERT</code> em <code>emp.trabalha_em</code>', '<b>BEFORE ROW</b>', 'o empregado já está em 2 ou mais projetos', '<code>RAISE EXCEPTION</code>'),
+        func: SKEL('emp.fn_max_projetos', 'NEW', 'DECLARE\n  qtd int;\n') + '<p>Variáveis locais são declaradas em <code>DECLARE</code>, antes do <code>BEGIN</code>.</p>',
+        logic: `<pre>  SELECT count(*) INTO qtd FROM emp.trabalha_em WHERE empmat = NEW.empmat;
+  IF qtd >= 2 THEN
+    RAISE EXCEPTION 'Empregado % ja esta em % projetos', NEW.empmat, qtd;
+  END IF;</pre><p>Em BEFORE a linha nova <b>ainda não está</b> na tabela, então o count conta só as alocações que já existem. Por isso a condição é <code>>= 2</code>, e não <code>> 2</code>.</p>`,
+        ret: '<p><code>RETURN NEW;</code></p>',
+        trig: `<pre>CREATE TRIGGER tg_max_projetos BEFORE INSERT ON emp.trabalha_em
+  FOR EACH ROW EXECUTE PROCEDURE emp.fn_max_projetos();</pre>`,
+        test: `<pre>INSERT INTO emp.trabalha_em VALUES ('009', 2, 5); -- ERRO (Irene já está nos projetos 1 e 3)
+INSERT INTO emp.trabalha_em VALUES ('004', 1, 5); -- ok (Carlos estava só no 3)</pre>`,
+      }),
       solution: `CREATE OR REPLACE FUNCTION emp.fn_max_projetos() RETURNS trigger AS $$
 DECLARE
   qtd int;
@@ -923,6 +1048,347 @@ CREATE TRIGGER tg_max_projetos BEFORE INSERT ON emp.trabalha_em
         { test: "INSERT INTO emp.trabalha_em (empmat, pcodigo, horas) VALUES ('009', 2, 5)", desc: 'Irene (já em 2 projetos) em mais um' },
         { test: "INSERT INTO emp.trabalha_em (empmat, pcodigo, horas) VALUES ('004', 1, 5)", desc: 'Carlos (em 1 projeto) em mais um' },
         { test: "INSERT INTO emp.trabalha_em (empmat, pcodigo, horas) VALUES ('004', 2, 5)", desc: 'Carlos em um terceiro' },
+      ],
+    },
+    {
+      id: '7-8', type: 'sql', db: 'empresa', mode: 'script', diff: 1, title: 'Corrigir a linha antes de gravar', desc: 'BEFORE alterando NEW.',
+      intro: '<p>Na coluna <code>sexo</code> de <code>emp.empregado</code> só podem entrar <code>\'M\'</code> ou <code>\'F\'</code>. Crie um gatilho (INSERT e UPDATE) que:</p><ul><li><b>converta para maiúscula</b> o que vier (<code>\'f\'</code> é gravado como <code>\'F\'</code>);</li><li><b>rejeite</b> qualquer outro valor, inclusive nulo.</li></ul>',
+      steps: TG({
+        eca: ECA('<code>INSERT</code> ou <code>UPDATE</code> em <code>emp.empregado</code>', '<b>BEFORE ROW</b>: só no BEFORE dá para <b>mudar</b> a linha que vai ser gravada', 'sempre corrige; rejeita se não for M/F', 'altera <code>NEW.sexo</code> e/ou <code>RAISE EXCEPTION</code>') +
+          '<p>Este é o segundo uso do BEFORE: além de barrar, ele pode <b>ajustar</b> os valores. Basta atribuir a um campo de <code>NEW</code>.</p>',
+        func: SKEL('emp.fn_sexo'),
+        logic: `<p>Primeiro corrija, depois valide:</p><pre>  NEW.sexo := UPPER(NEW.sexo);
+  IF NEW.sexo IS NULL OR NEW.sexo NOT IN ('M', 'F') THEN
+    RAISE EXCEPTION 'sexo invalido: %', NEW.sexo;
+  END IF;</pre><p>Atribuição em PL/pgSQL é <code>:=</code>. <code>UPPER(NULL)</code> continua nulo, e <code>NULL NOT IN (…)</code> dá nulo (não verdadeiro). Por isso o <code>IS NULL</code> explícito.</p>`,
+        ret: '<p><code>RETURN NEW;</code> É assim que a versão corrigida (maiúscula) chega à tabela. Se você esquecer, nada é gravado.</p>',
+        trig: `<pre>CREATE TRIGGER tg_sexo BEFORE INSERT OR UPDATE ON emp.empregado
+  FOR EACH ROW EXECUTE PROCEDURE emp.fn_sexo();</pre>`,
+        test: `<pre>INSERT INTO emp.empregado (nome, snome, matricula, sexo, salario, depto)
+  VALUES ('Bia','Luz','040','f', 900,'DES');            -- ok
+SELECT matricula, sexo FROM emp.empregado WHERE matricula = '040'; -- F maiúsculo
+UPDATE emp.empregado SET sexo = 'x' WHERE matricula = '005';       -- ERRO</pre>`,
+      }),
+      solution: `CREATE OR REPLACE FUNCTION emp.fn_sexo() RETURNS trigger AS $$
+BEGIN
+  NEW.sexo := UPPER(NEW.sexo);
+  IF NEW.sexo IS NULL OR NEW.sexo NOT IN ('M', 'F') THEN
+    RAISE EXCEPTION 'sexo invalido: %', NEW.sexo;
+  END IF;
+  RETURN NEW;
+END; $$ LANGUAGE plpgsql;
+
+CREATE TRIGGER tg_sexo BEFORE INSERT OR UPDATE ON emp.empregado
+  FOR EACH ROW EXECUTE PROCEDURE emp.fn_sexo();`,
+      checks: [
+        { test: "INSERT INTO emp.empregado (nome, snome, matricula, sexo, salario, depto) VALUES ('Bia','Luz','040','f', 900, 'DES')", desc: "Inserir com sexo 'f' (minúsculo)" },
+        { test: "INSERT INTO emp.empregado (nome, snome, matricula, sexo, salario, depto) VALUES ('Caio','Reis','041','X', 900, 'DES')", desc: "Inserir com sexo 'X'" },
+        { test: "INSERT INTO emp.empregado (nome, snome, matricula, sexo, salario, depto) VALUES ('Duda','Paz','042', NULL, 900, 'DES')", desc: 'Inserir sem sexo (nulo)' },
+        { test: "UPDATE emp.empregado SET sexo = 'm' WHERE matricula = '005'", desc: "Atualizar sexo de 005 para 'm'" },
+        { test: "UPDATE emp.empregado SET salario = 850 WHERE matricula = '007'", desc: 'Atualizar outra coluna de 007' },
+        { sql: "SELECT matricula, sexo, salario FROM emp.empregado WHERE matricula IN ('005','007','040') ORDER BY 1", desc: 'Valores gravados em maiúscula (NEW alterado + RETURN NEW)' },
+      ],
+    },
+    {
+      id: '7-9', type: 'sql', db: 'empresa', mode: 'script', diff: 1, title: 'Aumento de no máximo 20%', desc: 'OLD × NEW com cálculo.',
+      intro: '<p>Nenhum empregado pode receber um aumento <b>maior que 20%</b> de uma vez. Aumento de exatamente 20% é permitido; reduções e mudanças em outras colunas continuam liberadas.</p>',
+      steps: TG({
+        eca: ECA('<code>UPDATE</code> do salário em <code>emp.empregado</code>', '<b>BEFORE ROW</b>', 'salário novo maior que 1,2 × o salário antigo', '<code>RAISE EXCEPTION</code>'),
+        func: SKEL('emp.fn_aumento_max'),
+        logic: `<pre>  IF NEW.salario > OLD.salario * 1.2 THEN
+    RAISE EXCEPTION 'aumento de % para % passa de 20%%', OLD.salario, NEW.salario;
+  END IF;</pre><p>“No máximo 20%” significa que 20% passa, então use <code>></code>, não <code>>=</code>. Na mensagem, <code>%%</code> escreve um % literal.</p>`,
+        ret: '<p><code>RETURN NEW;</code></p>',
+        trig: `<pre>CREATE TRIGGER tg_aumento_max BEFORE UPDATE OF salario ON emp.empregado
+  FOR EACH ROW EXECUTE PROCEDURE emp.fn_aumento_max();</pre><p><code>UPDATE OF salario</code> faz o gatilho disparar só quando o SET mexe no salário.</p>`,
+        test: `<pre>UPDATE emp.empregado SET salario = 960  WHERE matricula = '005'; -- ok (800 → 960 é 20%)
+UPDATE emp.empregado SET salario = 1500 WHERE matricula = '006'; -- ERRO (1000 → 1500 é 50%)</pre>`,
+      }),
+      solution: `CREATE OR REPLACE FUNCTION emp.fn_aumento_max() RETURNS trigger AS $$
+BEGIN
+  IF NEW.salario > OLD.salario * 1.2 THEN
+    RAISE EXCEPTION 'aumento de % para % passa de 20%%', OLD.salario, NEW.salario;
+  END IF;
+  RETURN NEW;
+END; $$ LANGUAGE plpgsql;
+
+CREATE TRIGGER tg_aumento_max BEFORE UPDATE OF salario ON emp.empregado
+  FOR EACH ROW EXECUTE PROCEDURE emp.fn_aumento_max();`,
+      checks: [
+        { test: "UPDATE emp.empregado SET salario = 960 WHERE matricula = '005'", desc: 'Edson: 800 → 960 (exatamente 20%)' },
+        { test: "UPDATE emp.empregado SET salario = 1500 WHERE matricula = '006'", desc: 'Flávio: 1000 → 1500 (50%)' },
+        { test: "UPDATE emp.empregado SET salario = 850 WHERE matricula = '007'", desc: 'Gilda: redução 900 → 850' },
+        { test: "UPDATE emp.empregado SET salario = salario * 1.1 WHERE depto = 'DG'", desc: 'Aumento de 10% para toda a DG' },
+        { test: "UPDATE emp.empregado SET salario = salario * 1.3 WHERE depto = 'DES'", desc: 'Aumento de 30% para todo o DES' },
+        { sql: "SELECT matricula, salario FROM emp.empregado WHERE depto IN ('PROD','DG') OR matricula = '004' ORDER BY 1", desc: 'Salários finais corretos' },
+      ],
+    },
+    {
+      id: '7-10', type: 'sql', db: 'empresa', mode: 'script', diff: 2, title: 'Gerente não pode ser excluído', desc: 'BEFORE DELETE e RETURN OLD.',
+      intro: '<p>Um empregado que <b>gerencia algum departamento</b> (<code>emp.departamento.matriculagerente</code>) não pode ser excluído de <code>emp.empregado</code>. Os demais podem.</p><p class="muted small">Sem o gatilho, excluir o 003 funcionaria: a FK do gerente é <code>ON DELETE SET NULL</code> e o departamento simplesmente ficaria sem gerente.</p>',
+      steps: TG({
+        eca: ECA('<code>DELETE</code> em <code>emp.empregado</code>', '<b>BEFORE ROW</b>', 'existe departamento cujo gerente é a linha sendo removida', '<code>RAISE EXCEPTION</code>') +
+          '<p>No DELETE <b>não existe NEW</b>: a linha que está saindo é <code>OLD</code>.</p>',
+        func: SKEL('emp.fn_protege_gerente', 'OLD'),
+        logic: `<pre>  IF EXISTS (SELECT 1 FROM emp.departamento d
+              WHERE d.matriculagerente = OLD.matricula) THEN
+    RAISE EXCEPTION 'empregado % gerencia um departamento', OLD.nome;
+  END IF;</pre><p><code>EXISTS (subconsulta)</code> é verdadeiro se a subconsulta devolve pelo menos uma linha, e é o jeito mais limpo de perguntar “existe algum…?”.</p>`,
+        ret: '<p><code>RETURN OLD;</code> <b>Esta é a pegadinha.</b> Em BEFORE DELETE, NEW é nulo; se você retornar NEW (ou NULL), o PostgreSQL cancela a exclusão <i>sem dar erro</i>, e nenhum empregado consegue mais ser excluído.</p>',
+        trig: `<pre>CREATE TRIGGER tg_protege_gerente BEFORE DELETE ON emp.empregado
+  FOR EACH ROW EXECUTE PROCEDURE emp.fn_protege_gerente();</pre>`,
+        test: `<pre>DELETE FROM emp.empregado WHERE matricula = '003';   -- ERRO (gerente da PROD)
+DELETE FROM emp.trabalha_em WHERE empmat = '007';     -- libera a FK de trabalha_em
+DELETE FROM emp.empregado WHERE matricula = '007';   -- ok
+SELECT * FROM emp.empregado WHERE matricula = '007'; -- 0 linhas</pre>`,
+      }),
+      solution: `CREATE OR REPLACE FUNCTION emp.fn_protege_gerente() RETURNS trigger AS $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM emp.departamento d WHERE d.matriculagerente = OLD.matricula) THEN
+    RAISE EXCEPTION 'empregado % gerencia um departamento e nao pode ser excluido', OLD.nome;
+  END IF;
+  RETURN OLD;
+END; $$ LANGUAGE plpgsql;
+
+CREATE TRIGGER tg_protege_gerente BEFORE DELETE ON emp.empregado
+  FOR EACH ROW EXECUTE PROCEDURE emp.fn_protege_gerente();`,
+      checks: [
+        { test: "DELETE FROM emp.empregado WHERE matricula = '003'", desc: 'Excluir Abel (gerente da PROD)' },
+        { test: "DELETE FROM emp.trabalha_em WHERE empmat = '007'", desc: 'Remover as alocações de Gilda' },
+        { test: "DELETE FROM emp.empregado WHERE matricula = '007'", desc: 'Excluir Gilda (não é gerente)' },
+        { sql: "SELECT matricula FROM emp.empregado WHERE matricula IN ('003','007') ORDER BY 1", desc: 'Abel continua e Gilda saiu de verdade (RETURN OLD)' },
+      ],
+    },
+    {
+      id: '7-11', type: 'sql', db: 'empresa', mode: 'script', diff: 2, title: 'Arquivo de ex-empregados', desc: 'AFTER DELETE copiando OLD.',
+      intro: '<p>A tabela <code>emp.ex_empregado(matricula, nome, salario, depto, saida)</code> já existe (<code>saida</code> tem DEFAULT now()). Sempre que um empregado for excluído, guarde nela a matrícula, o <b>nome completo</b> (<code>nome</code> + espaço + <code>snome</code>), o salário e o departamento.</p>',
+      setup: 'CREATE TABLE emp.ex_empregado (matricula char(9), nome varchar(31), salario numeric(10,2), depto char(5), saida timestamp DEFAULT now());',
+      steps: TG({
+        eca: ECA('<code>DELETE</code> em <code>emp.empregado</code>', '<b>AFTER ROW</b>: só arquiva quem de fato saiu (se o DELETE falhar por FK, nada é arquivado)', 'sempre', '<code>INSERT</code> em <code>emp.ex_empregado</code> com os dados de <code>OLD</code>'),
+        func: SKEL('emp.fn_arquiva', 'NULL'),
+        logic: `<pre>  INSERT INTO emp.ex_empregado (matricula, nome, salario, depto)
+    VALUES (OLD.matricula, OLD.nome || ' ' || OLD.snome, OLD.salario, OLD.depto);</pre><p><code>||</code> concatena textos. <code>saida</code> fica de fora porque tem DEFAULT.</p>`,
+        ret: '<p><code>RETURN NULL;</code> (AFTER ignora o retorno). Se você fizesse BEFORE com <code>RETURN NULL</code>, o arquivo seria preenchido mas a exclusão seria cancelada.</p>',
+        trig: `<pre>CREATE TRIGGER tg_arquiva AFTER DELETE ON emp.empregado
+  FOR EACH ROW EXECUTE PROCEDURE emp.fn_arquiva();</pre>`,
+        test: `<pre>DELETE FROM emp.empregado WHERE matricula = '003';
+SELECT matricula, nome, salario, depto FROM emp.ex_empregado; -- 003 | Abel Flores | 1000.00 | DG</pre>`,
+      }),
+      solution: `CREATE OR REPLACE FUNCTION emp.fn_arquiva() RETURNS trigger AS $$
+BEGIN
+  INSERT INTO emp.ex_empregado (matricula, nome, salario, depto)
+    VALUES (OLD.matricula, OLD.nome || ' ' || OLD.snome, OLD.salario, OLD.depto);
+  RETURN NULL;
+END; $$ LANGUAGE plpgsql;
+
+CREATE TRIGGER tg_arquiva AFTER DELETE ON emp.empregado
+  FOR EACH ROW EXECUTE PROCEDURE emp.fn_arquiva();`,
+      checks: [
+        { test: "DELETE FROM emp.empregado WHERE matricula = '003'", desc: 'Excluir Abel' },
+        { test: "DELETE FROM emp.trabalha_em WHERE empmat IN ('005','006')", desc: 'Remover alocações de 005 e 006' },
+        { test: "DELETE FROM emp.empregado WHERE matricula IN ('005','006')", desc: 'Excluir Edson e Flávio num só comando' },
+        { test: "UPDATE emp.empregado SET salario = 950 WHERE matricula = '007'", desc: 'UPDATE não deve arquivar ninguém' },
+        { sql: 'SELECT matricula, nome, salario, depto FROM emp.ex_empregado ORDER BY 1', desc: 'Arquivo com os 3 excluídos e nome completo' },
+        { sql: "SELECT count(*) AS restantes FROM emp.empregado WHERE matricula IN ('003','005','006')", desc: 'Eles saíram de verdade de emp.empregado' },
+      ],
+    },
+    {
+      id: '7-12', type: 'sql', db: 'empresa', mode: 'script', diff: 2, title: 'Supervisor padrão', desc: 'BEFORE preenchendo NEW com consulta.',
+      intro: '<p>Quando um empregado for <b>inserido sem supervisor</b> (<code>supermat</code> nulo), o gatilho deve preencher <code>supermat</code> com o <b>gerente do departamento</b> dele (<code>emp.departamento.matriculagerente</code>). Se o supervisor vier informado, mantenha o que veio.</p>',
+      steps: TG({
+        eca: ECA('<code>INSERT</code> em <code>emp.empregado</code>', '<b>BEFORE ROW</b>: é preciso mudar a linha antes de gravar', '<code>NEW.supermat IS NULL</code>', 'buscar o gerente do <code>NEW.depto</code> e colocar em <code>NEW.supermat</code>') +
+          '<p>É o “DEFAULT inteligente”: um DEFAULT comum não consegue consultar outra tabela, mas o gatilho consegue.</p>',
+        func: SKEL('emp.fn_super_padrao'),
+        logic: `<pre>  IF NEW.supermat IS NULL THEN
+    NEW.supermat := (SELECT d.matriculagerente
+                       FROM emp.departamento d
+                      WHERE d.deptosigla = NEW.depto);
+  END IF;</pre><p>Também vale <code>SELECT d.matriculagerente INTO NEW.supermat FROM … WHERE …;</code></p>`,
+        ret: '<p><code>RETURN NEW;</code> Leva a linha alterada para a tabela.</p>',
+        trig: `<pre>CREATE TRIGGER tg_super_padrao BEFORE INSERT ON emp.empregado
+  FOR EACH ROW EXECUTE PROCEDURE emp.fn_super_padrao();</pre>`,
+        test: `<pre>INSERT INTO emp.empregado (nome, snome, matricula, salario, supermat, depto)
+  VALUES ('Rita','Paz','050', 900, NULL, 'PROD');
+SELECT matricula, supermat FROM emp.empregado WHERE matricula = '050'; -- 003 (gerente da PROD)</pre>`,
+      }),
+      solution: `CREATE OR REPLACE FUNCTION emp.fn_super_padrao() RETURNS trigger AS $$
+BEGIN
+  IF NEW.supermat IS NULL THEN
+    NEW.supermat := (SELECT d.matriculagerente FROM emp.departamento d WHERE d.deptosigla = NEW.depto);
+  END IF;
+  RETURN NEW;
+END; $$ LANGUAGE plpgsql;
+
+CREATE TRIGGER tg_super_padrao BEFORE INSERT ON emp.empregado
+  FOR EACH ROW EXECUTE PROCEDURE emp.fn_super_padrao();`,
+      checks: [
+        { test: "INSERT INTO emp.empregado (nome, snome, matricula, salario, supermat, depto) VALUES ('Rita','Paz','050', 900, NULL, 'PROD')", desc: 'Rita (PROD) sem supervisor' },
+        { test: "INSERT INTO emp.empregado (nome, snome, matricula, salario, supermat, depto) VALUES ('Davi','Cruz','051', 900, '004', 'DES')", desc: 'Davi (DES) com supervisor 004 informado' },
+        { test: "INSERT INTO emp.empregado (nome, snome, matricula, salario, depto) VALUES ('Leo','Dias','052', 900, 'DES')", desc: 'Leo (DES) sem a coluna supermat' },
+        { sql: "SELECT matricula, supermat FROM emp.empregado WHERE matricula IN ('050','051','052') ORDER BY 1", desc: 'Supervisores: 003 (gerente PROD), 004 (informado), 001 (gerente DES)' },
+      ],
+    },
+    {
+      id: '7-13', type: 'sql', db: 'empresa', mode: 'script', diff: 2, title: 'Regras do auxílio-creche', desc: 'Duas condições em outra tabela.',
+      intro: '<p>Em <code>emp.dependente</code>, o <code>auxiliocreche</code> só pode ser preenchido se:</p><ol><li>o parentesco for <code>\'filho\'</code> ou <code>\'filha\'</code>;</li><li>o valor for <b>no máximo 300</b>.</li></ol><p>Dependente sem auxílio (nulo) é sempre aceito. Valide em INSERT e UPDATE.</p>',
+      steps: TG({
+        eca: ECA('<code>INSERT</code> ou <code>UPDATE</code> em <code>emp.dependente</code>', '<b>BEFORE ROW</b>', 'tem auxílio <b>e</b> (não é filho/filha <b>ou</b> valor > 300)', '<code>RAISE EXCEPTION</code>, uma mensagem para cada regra') +
+          '<p>Comece sempre perguntando: <i>quando a regra nem se aplica?</i> Aqui, quando <code>auxiliocreche</code> é nulo.</p>',
+        func: SKEL('emp.fn_auxilio'),
+        logic: `<pre>  IF NEW.auxiliocreche IS NOT NULL THEN
+    IF NEW.parentesco NOT IN ('filho', 'filha') THEN
+      RAISE EXCEPTION 'auxilio-creche so para filho/filha (% e %)', NEW.depnome, NEW.parentesco;
+    END IF;
+    IF NEW.auxiliocreche > 300 THEN
+      RAISE EXCEPTION 'auxilio-creche maximo e 300 (veio %)', NEW.auxiliocreche;
+    END IF;
+  END IF;</pre><p>IFs aninhados deixam claro o que é “pré-condição” e o que é cada regra. Um único IF com <code>AND (… OR …)</code> também funciona, desde que os parênteses estejam certos.</p>`,
+        ret: '<p><code>RETURN NEW;</code></p>',
+        trig: `<pre>CREATE TRIGGER tg_auxilio BEFORE INSERT OR UPDATE ON emp.dependente
+  FOR EACH ROW EXECUTE PROCEDURE emp.fn_auxilio();</pre><p>Repare que o gatilho é na tabela <code>emp.dependente</code>, não em empregado.</p>`,
+        test: `<pre>UPDATE emp.dependente SET auxiliocreche = 150 WHERE depnome = 'Yoshi';  -- ERRO (pet)
+INSERT INTO emp.dependente VALUES ('011','Nina','F','2023-05-05','filha', 500); -- ERRO (> 300)
+INSERT INTO emp.dependente VALUES ('009','Theo','M','2022-01-10','filho', 200); -- ok</pre>`,
+      }),
+      solution: `CREATE OR REPLACE FUNCTION emp.fn_auxilio() RETURNS trigger AS $$
+BEGIN
+  IF NEW.auxiliocreche IS NOT NULL THEN
+    IF NEW.parentesco NOT IN ('filho', 'filha') THEN
+      RAISE EXCEPTION 'auxilio-creche so para filho/filha (% e %)', NEW.depnome, NEW.parentesco;
+    END IF;
+    IF NEW.auxiliocreche > 300 THEN
+      RAISE EXCEPTION 'auxilio-creche maximo e 300 (veio %)', NEW.auxiliocreche;
+    END IF;
+  END IF;
+  RETURN NEW;
+END; $$ LANGUAGE plpgsql;
+
+CREATE TRIGGER tg_auxilio BEFORE INSERT OR UPDATE ON emp.dependente
+  FOR EACH ROW EXECUTE PROCEDURE emp.fn_auxilio();`,
+      checks: [
+        { test: "UPDATE emp.dependente SET auxiliocreche = 150 WHERE depnome = 'Yoshi'", desc: 'Auxílio para o pet Yoshi' },
+        { test: "INSERT INTO emp.dependente VALUES ('009','Theo','M','2022-01-10','filho', 200)", desc: 'Filho com auxílio de 200' },
+        { test: "INSERT INTO emp.dependente VALUES ('009','Rosa','F','1960-01-01','mae', 100)", desc: 'Mãe com auxílio' },
+        { test: "INSERT INTO emp.dependente VALUES ('011','Nina','F','2023-05-05','filha', 500)", desc: 'Filha com auxílio de 500' },
+        { test: "INSERT INTO emp.dependente VALUES ('011','Lara','F','2021-02-02','filha', NULL)", desc: 'Filha sem auxílio' },
+        { test: "INSERT INTO emp.dependente VALUES ('004','Rui','M','1970-01-01','esposo', NULL)", desc: 'Esposo sem auxílio (a regra nem se aplica)' },
+        { test: "UPDATE emp.dependente SET auxiliocreche = 300 WHERE depnome = 'Ana'", desc: 'Ana: auxílio passa a 300 (limite)' },
+        { sql: 'SELECT empmat, depnome, auxiliocreche FROM emp.dependente ORDER BY 1, 2', desc: 'Dependentes e auxílios finais' },
+      ],
+    },
+    {
+      id: '7-14', type: 'sql', db: 'empresa', mode: 'script', diff: 2, title: 'Um log por comando', desc: 'FOR EACH STATEMENT.',
+      intro: '<p>A tabela <code>emp.log_ops(id, tabela, operacao, quando)</code> já existe. Registre nela <b>uma linha por comando</b> (não por linha afetada) de INSERT, UPDATE ou DELETE executado em <code>emp.projeto</code>, com <code>tabela = \'projeto\'</code> e <code>operacao</code> = o tipo do comando.</p><p class="muted small">Um UPDATE que mexe em 3 projetos gera <b>1</b> linha no log.</p>',
+      setup: 'CREATE TABLE emp.log_ops (id serial PRIMARY KEY, tabela text, operacao text, quando timestamp DEFAULT now());',
+      steps: TG({
+        eca: ECA('<code>INSERT</code>, <code>UPDATE</code> ou <code>DELETE</code> em <code>emp.projeto</code>', '<b>AFTER</b>, <b>FOR EACH STATEMENT</b>: uma vez por comando', 'sempre', '<code>INSERT</code> em <code>emp.log_ops</code>') +
+          `<table class="tbl"><tr><th></th><th>FOR EACH ROW</th><th>FOR EACH STATEMENT</th></tr>
+<tr><td>Dispara</td><td>1× por linha afetada</td><td>1× por comando, mesmo com 0 linhas</td></tr>
+<tr><td>OLD / NEW</td><td>sim</td><td><b>não</b> (são nulos)</td></tr></table>`,
+        func: SKEL('emp.fn_log_ops', 'NULL'),
+        logic: `<pre>  INSERT INTO emp.log_ops (tabela, operacao) VALUES (TG_TABLE_NAME, TG_OP);</pre><p>Variáveis automáticas: <code>TG_TABLE_NAME</code> = nome da tabela (<code>'projeto'</code>), <code>TG_OP</code> = <code>'INSERT'</code>/<code>'UPDATE'</code>/<code>'DELETE'</code>. Não use OLD/NEW aqui.</p>`,
+        ret: '<p><code>RETURN NULL;</code> Em gatilho de comando o retorno é sempre ignorado.</p>',
+        trig: `<pre>CREATE TRIGGER tg_log_ops AFTER INSERT OR UPDATE OR DELETE ON emp.projeto
+  FOR EACH STATEMENT EXECUTE PROCEDURE emp.fn_log_ops();</pre><p>A única diferença para os anteriores é <code>FOR EACH STATEMENT</code> no lugar de <code>FOR EACH ROW</code>.</p>`,
+        test: `<pre>UPDATE emp.projeto SET plocalizacao = UPPER(plocalizacao); -- 3 linhas afetadas
+SELECT * FROM emp.log_ops;                                  -- 1 linha só: UPDATE</pre>`,
+      }),
+      solution: `CREATE OR REPLACE FUNCTION emp.fn_log_ops() RETURNS trigger AS $$
+BEGIN
+  INSERT INTO emp.log_ops (tabela, operacao) VALUES (TG_TABLE_NAME, TG_OP);
+  RETURN NULL;
+END; $$ LANGUAGE plpgsql;
+
+CREATE TRIGGER tg_log_ops AFTER INSERT OR UPDATE OR DELETE ON emp.projeto
+  FOR EACH STATEMENT EXECUTE PROCEDURE emp.fn_log_ops();`,
+      checks: [
+        { test: 'UPDATE emp.projeto SET plocalizacao = UPPER(plocalizacao)', desc: 'UPDATE em 3 projetos' },
+        { test: "INSERT INTO emp.projeto VALUES ('Mata',4,'Linhares','DES'), ('Rio',5,'Vitoria','PROD')", desc: 'INSERT de 2 projetos num só comando' },
+        { test: 'DELETE FROM emp.projeto WHERE pcodigo IN (4,5)', desc: 'DELETE dos 2 projetos novos' },
+        { test: "UPDATE emp.projeto SET plocalizacao = 'X' WHERE pcodigo = 99", desc: 'UPDATE que não afeta nenhuma linha' },
+        { sql: 'SELECT tabela, operacao, count(*) AS vezes FROM emp.log_ops GROUP BY tabela, operacao', desc: 'Log: UPDATE 2×, INSERT 1×, DELETE 1×' },
+      ],
+    },
+    {
+      id: '7-15', type: 'sql', db: 'empresa', mode: 'script', diff: 3, title: 'Teto da folha por departamento', desc: 'Agregação dentro do gatilho.',
+      intro: '<p>A <b>soma dos salários</b> de cada departamento não pode passar de <b>10.000</b>. A regra vale para contratações (INSERT) e para qualquer UPDATE, inclusive quando alguém <b>muda de departamento</b>.</p><p class="muted small">Hoje: DES = 8.450, PROD = 4.100, DG = 4.000.</p>',
+      steps: TG({
+        eca: ECA('<code>INSERT</code> ou <code>UPDATE</code> em <code>emp.empregado</code>', '<b>AFTER ROW</b>: depois da gravação a linha nova já está na tabela, e o SUM a inclui', 'SUM(salario) do departamento de NEW > 10000', '<code>RAISE EXCEPTION</code>: em AFTER também desfaz o comando inteiro') +
+          '<p>Por que AFTER? Em BEFORE você teria que somar “todos menos a linha antiga” e acrescentar o salário novo. Em AFTER basta somar o que está na tabela.</p>',
+        func: SKEL('emp.fn_teto_folha', 'NULL', 'DECLARE\n  total numeric;\n'),
+        logic: `<pre>  SELECT SUM(salario) INTO total
+    FROM emp.empregado
+   WHERE depto = NEW.depto;
+  IF total > 10000 THEN
+    RAISE EXCEPTION 'folha do depto % passaria para %', NEW.depto, total;
+  END IF;</pre><p>Use <code>NEW.depto</code>: se a pessoa mudou de departamento, é o <b>destino</b> que pode estourar. O de origem só diminui.</p>`,
+        ret: '<p><code>RETURN NULL;</code> (AFTER)</p>',
+        trig: `<pre>CREATE TRIGGER tg_teto_folha AFTER INSERT OR UPDATE ON emp.empregado
+  FOR EACH ROW EXECUTE PROCEDURE emp.fn_teto_folha();</pre>`,
+        test: `<pre>UPDATE emp.empregado SET salario = 2500 WHERE matricula = '010'; -- ok   (DES = 9.950)
+UPDATE emp.empregado SET salario = 1500 WHERE matricula = '012'; -- ERRO (DES = 10.550)
+UPDATE emp.empregado SET depto = 'DES'  WHERE matricula = '011'; -- ERRO (Kátia leva 1.400 para o DES)</pre>`,
+      }),
+      solution: `CREATE OR REPLACE FUNCTION emp.fn_teto_folha() RETURNS trigger AS $$
+DECLARE
+  total numeric;
+BEGIN
+  SELECT SUM(salario) INTO total FROM emp.empregado WHERE depto = NEW.depto;
+  IF total > 10000 THEN
+    RAISE EXCEPTION 'folha do depto % passaria para %', NEW.depto, total;
+  END IF;
+  RETURN NULL;
+END; $$ LANGUAGE plpgsql;
+
+CREATE TRIGGER tg_teto_folha AFTER INSERT OR UPDATE ON emp.empregado
+  FOR EACH ROW EXECUTE PROCEDURE emp.fn_teto_folha();`,
+      checks: [
+        { test: "UPDATE emp.empregado SET salario = 2500 WHERE matricula = '010'", desc: 'José: 1000 → 2500 (DES fica com 9.950)' },
+        { test: "UPDATE emp.empregado SET salario = 1500 WHERE matricula = '012'", desc: 'Noel: 900 → 1500 (DES iria a 10.550)' },
+        { test: "INSERT INTO emp.empregado (nome, snome, matricula, salario, supermat, depto) VALUES ('Gil','Lopes','060', 5000, '003', 'PROD')", desc: 'Contratar Gil por 5.000 na PROD (9.100)' },
+        { test: "INSERT INTO emp.empregado (nome, snome, matricula, salario, supermat, depto) VALUES ('Ivo','Nunes','061', 1000, '003', 'PROD')", desc: 'Contratar Ivo por 1.000 na PROD (10.100)' },
+        { test: "UPDATE emp.empregado SET depto = 'DES' WHERE matricula = '011'", desc: 'Kátia (1.400) mudar da PROD para o DES' },
+        { test: "UPDATE emp.empregado SET salario = salario + 50 WHERE depto = 'DG'", desc: 'Aumento de 50 para toda a DG' },
+        { sql: 'SELECT depto, SUM(salario) AS folha FROM emp.empregado GROUP BY depto', desc: 'Folhas finais por departamento' },
+      ],
+    },
+    {
+      id: '7-16', type: 'sql', db: 'empresa', mode: 'script', diff: 3, title: 'Novo gerente muda de departamento', desc: 'Gatilho que atualiza outra tabela.',
+      intro: '<p>Sempre que um departamento <b>for criado com gerente</b> ou <b>trocar de gerente</b>, o novo gerente deve passar a pertencer a esse departamento (<code>emp.empregado.depto</code>).</p>',
+      steps: TG({
+        eca: ECA('<code>INSERT</code> ou <code>UPDATE OF matriculagerente</code> em <b><code>emp.departamento</code></b>', '<b>AFTER ROW</b>: o departamento precisa existir antes de ser referenciado pela FK <code>empregado.depto</code>', 'o gerente não é nulo', '<code>UPDATE emp.empregado SET depto = …</code>') +
+          '<p>O evento acontece numa tabela (departamento) e a ação mexe em <b>outra</b> (empregado).</p>',
+        func: SKEL('emp.fn_gerente_no_depto', 'NULL'),
+        logic: `<pre>  IF NEW.matriculagerente IS NOT NULL THEN
+    UPDATE emp.empregado
+       SET depto = NEW.deptosigla
+     WHERE matricula = NEW.matriculagerente;
+  END IF;</pre><p>Não dá para usar <code>WHEN (OLD… )</code> aqui, porque no INSERT não existe OLD. Por isso a condição fica dentro da função.</p>`,
+        ret: '<p><code>RETURN NULL;</code> (AFTER)</p>',
+        trig: `<pre>CREATE TRIGGER tg_gerente_no_depto
+  AFTER INSERT OR UPDATE OF matriculagerente ON emp.departamento
+  FOR EACH ROW EXECUTE PROCEDURE emp.fn_gerente_no_depto();</pre><p><code>UPDATE OF matriculagerente</code> evita disparar quando só o nome do departamento muda.</p>`,
+        test: `<pre>UPDATE emp.departamento SET matriculagerente = '011' WHERE deptosigla = 'DES';
+SELECT matricula, depto FROM emp.empregado WHERE matricula = '011'; -- DES (antes era PROD)
+INSERT INTO emp.departamento VALUES ('Vendas', 'VEN', '006');
+SELECT matricula, depto FROM emp.empregado WHERE matricula = '006'; -- VEN</pre>`,
+      }),
+      solution: `CREATE OR REPLACE FUNCTION emp.fn_gerente_no_depto() RETURNS trigger AS $$
+BEGIN
+  IF NEW.matriculagerente IS NOT NULL THEN
+    UPDATE emp.empregado SET depto = NEW.deptosigla WHERE matricula = NEW.matriculagerente;
+  END IF;
+  RETURN NULL;
+END; $$ LANGUAGE plpgsql;
+
+CREATE TRIGGER tg_gerente_no_depto AFTER INSERT OR UPDATE OF matriculagerente ON emp.departamento
+  FOR EACH ROW EXECUTE PROCEDURE emp.fn_gerente_no_depto();`,
+      checks: [
+        { test: "UPDATE emp.departamento SET matriculagerente = '011' WHERE deptosigla = 'DES'", desc: 'Kátia (PROD) vira gerente do DES' },
+        { test: "INSERT INTO emp.departamento VALUES ('Vendas', 'VEN', '006')", desc: 'Criar Vendas com gerente Flávio' },
+        { test: "INSERT INTO emp.departamento VALUES ('Marketing', 'MKT', NULL)", desc: 'Criar Marketing sem gerente' },
+        { test: "UPDATE emp.departamento SET deptonome = 'Fabrica' WHERE deptosigla = 'PROD'", desc: 'Renomear a PROD (gerente não muda)' },
+        { sql: "SELECT matricula, depto FROM emp.empregado WHERE matricula IN ('003','006','011') ORDER BY 1", desc: 'Kátia no DES, Flávio em VEN, Abel continua na DG' },
       ],
     },
   ],

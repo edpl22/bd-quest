@@ -512,7 +512,7 @@ DELETE FROM clientes;   -- apaga TUDO: confira várias vezes!</pre>
 SQLREF,
 {
   id: 'triggers', num: 11, title: 'Triggers (gatilhos) e PL/pgSQL', foe: 'Triggers',
-  practice: ['7-1', '7-2', '7-3', '7-4', '7-5', '7-6', '7-7'],
+  practice: ['7-1', '7-2', '7-3', '7-4', '7-5', '7-6', '7-7', '7-8', '7-9', '7-10', '7-11', '7-12', '7-13', '7-14', '7-15', '7-16'],
   html: `
 <p>Restrições declarativas (NOT NULL, CHECK, UNIQUE, FK) validam o estado de <b>uma</b> tabela. <b>Triggers</b> implementam regras de negócio complexas, auditoria e atualizações automáticas, disparando em um evento DML.</p>
 <h3>Modelo ECA: Evento – Condição – Ação</h3>
@@ -582,6 +582,23 @@ BEGIN
 END; $$ LANGUAGE plpgsql;
 CREATE TRIGGER tg_log AFTER UPDATE OF salario ON emp.empregado
   FOR EACH ROW WHEN (OLD.salario IS DISTINCT FROM NEW.salario) EXECUTE PROCEDURE emp.fn_log();</pre>
+<h3>Receita em 6 passos (serve para qualquer trigger da prova)</h3>
+<ol>
+<li><b>Evento – Condição – Ação.</b> Em que tabela e em qual comando (INSERT/UPDATE/DELETE)? Quando a regra é violada? O que fazer: barrar, corrigir a linha ou mexer em outra tabela?</li>
+<li><b>Momento e granularidade.</b> Barrar ou alterar a linha → <code>BEFORE</code>. Reagir ao que já foi gravado (log, totais, outra tabela) → <code>AFTER</code>. Quase sempre <code>FOR EACH ROW</code>; use <code>FOR EACH STATEMENT</code> só para “uma vez por comando”.</li>
+<li><b>Esqueleto</b>: <code>CREATE OR REPLACE FUNCTION esq.nome() RETURNS trigger AS $$ [DECLARE …] BEGIN … RETURN …; END; $$ LANGUAGE plpgsql;</code></li>
+<li><b>Lógica</b> com <code>IF … THEN … END IF;</code>, usando <code>NEW</code> (INSERT/UPDATE) e <code>OLD</code> (UPDATE/DELETE). Consultas: subconsulta escalar, <code>SELECT … INTO var</code> ou <code>EXISTS (…)</code>. Cuidado com nulos: use <code>IS NULL</code> e <code>IS DISTINCT FROM</code>.</li>
+<li><b>Retorno</b>: BEFORE INSERT/UPDATE → <code>RETURN NEW</code>; BEFORE DELETE → <code>RETURN OLD</code>; AFTER ou STATEMENT → <code>RETURN NULL</code>.</li>
+<li><b>Gatilho</b>: <code>CREATE TRIGGER nome {BEFORE|AFTER} evento [OR evento] [OF coluna] ON tabela FOR EACH ROW [WHEN (…)] EXECUTE PROCEDURE esq.nome();</code></li>
+</ol>
+<table class="tbl"><tr><th>Quero…</th><th>Use</th><th>Exercício</th></tr>
+<tr><td>barrar um valor inválido</td><td>BEFORE + RAISE EXCEPTION</td><td>7-1, 7-2, 7-9</td></tr>
+<tr><td>comparar com outra linha</td><td>BEFORE + subconsulta / EXISTS</td><td>7-3, 7-4, 7-10</td></tr>
+<tr><td>corrigir ou preencher a linha</td><td>BEFORE + <code>NEW.col := …</code></td><td>7-8, 7-12</td></tr>
+<tr><td>contar/somar antes de aceitar</td><td>BEFORE/AFTER + SELECT … INTO</td><td>7-7, 7-15</td></tr>
+<tr><td>gravar log/arquivo</td><td>AFTER + INSERT em outra tabela</td><td>7-5, 7-11, 7-14</td></tr>
+<tr><td>manter outra tabela coerente</td><td>AFTER + UPDATE em outra tabela, TG_OP</td><td>7-6, 7-16</td></tr>
+<tr><td>regras em outra tabela</td><td>o gatilho fica nela</td><td>7-13</td></tr></table>
 <div class="callout warn"><p>Cuidado com recursão: um AFTER UPDATE que faz UPDATE na mesma tabela dispara de novo. Prefira BEFORE alterando NEW, ou condições <code>WHEN</code>.</p></div>
 `,
 },
