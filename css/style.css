@@ -605,3 +605,54 @@ body.scare-shake { animation: scare-shake .08s linear infinite; }
   .rep-code { border-color: #c6c6c6; }
   a { color: inherit; }
 }
+
+/* ---------- simulado de sintaxe ---------- */
+.sim { max-width: 860px; }
+.sim-topics { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 8px 20px; }
+.sim-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin: 16px 0 8px; }
+.sim-wrong { display: flex; align-items: center; gap: 16px; justify-content: space-between; flex-wrap: wrap; border-left: 3px solid var(--warn); }
+.sim-hist td, .sim-hist th { padding: 4px 16px 4px 0; text-align: left; }
+.sim-top { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; padding: 4px 0 10px; }
+.sim-count { font-weight: 600; }
+.sim-bar { flex: 1; max-width: none; min-width: 80px; }
+.sim-bar i { background: var(--accent); transition: width .25s; }
+.sim-ok { color: var(--ok); font-weight: 600; }
+.sim-clock { font-family: var(--mono); color: var(--text-3); font-size: .85rem; min-width: 3.2em; }
+.sim-qtime { height: 3px; background: var(--border); margin-bottom: 10px; }
+.sim-qtime i { display: block; height: 100%; width: 100%; background: var(--accent); transition: width .2s linear; }
+.sim-qtime.low i { background: var(--err); }
+.sim-card { background: var(--layer); border: 1px solid var(--border); padding: 20px 24px; }
+.sim-meta { display: flex; gap: 10px; align-items: center; margin-bottom: 8px; }
+.sim-q { font-size: 1.02rem; margin: 4px 0 10px; }
+.sim-q p { margin: 0; }
+.sim-code { font-size: .92rem; line-height: 1.7; white-space: pre-wrap; }
+.sim-code mark { background: var(--ok-soft); color: var(--ok); font-weight: 600; padding: 0 3px; }
+.sim-blank { font: inherit; font-weight: 600; color: var(--text); background: var(--accent-soft); border: 0; border-bottom: 2px solid var(--accent); padding: 0 4px; margin: 0 1px; outline: none; text-transform: uppercase; }
+.sim-blank.ok { color: var(--ok); background: var(--ok-soft); border-color: var(--ok); }
+.sim-blank.err { color: var(--err); background: var(--err-soft); border-color: var(--err); text-decoration: line-through; }
+.sim-opts { display: grid; gap: 8px; margin: 6px 0 4px; }
+.sim-opts.tf { grid-template-columns: 1fr 1fr; }
+.sim-opt { display: flex; gap: 10px; align-items: center; text-align: left; font: inherit; color: var(--text); background: var(--layer-2); border: 1px solid var(--border); padding: 10px 12px; cursor: pointer; }
+.sim-opt:hover:not(:disabled) { border-color: var(--accent); background: var(--accent-soft); }
+.sim-opt:disabled { cursor: default; opacity: .85; }
+.sim-opt.right { border-color: var(--ok); background: var(--ok-soft); opacity: 1; }
+.sim-opt.wrong { border-color: var(--err); background: var(--err-soft); opacity: 1; }
+.sim-opt code { background: none; border: 0; padding: 0; font-size: .88rem; }
+.sim-key { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; width: 22px; height: 22px; font-size: .75rem; font-family: var(--mono); border: 1px solid var(--border-strong); color: var(--text-3); }
+.sim-actions { display: flex; gap: 10px; align-items: center; margin-top: 12px; flex-wrap: wrap; }
+.sim-fb { margin-top: 14px; padding: 12px 14px; border-left: 3px solid; background: var(--layer-2); }
+.sim-fb.ok { border-color: var(--ok); }
+.sim-fb.err { border-color: var(--err); }
+.sim-fb-title { font-weight: 600; margin-bottom: 4px; }
+.sim-fb.ok .sim-fb-title { color: var(--ok); }
+.sim-fb.err .sim-fb-title { color: var(--err); }
+.sim-exp { font-size: .9rem; color: var(--text-2); margin-top: 4px; }
+.sim-score { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; }
+.sim-big { font-size: 2.6rem; font-weight: 300; line-height: 1; }
+.sim-big.ok { color: var(--ok); } .sim-big.warn { color: var(--warn); } .sim-big.err { color: var(--err); }
+.sim-score-line { font-size: 1.1rem; font-weight: 600; }
+.sim-topic-tbl td { padding: 4px 16px 4px 0; }
+.sim-topic-tbl td:last-child { width: 180px; }
+.sim-rev { padding: 12px 0; border-bottom: 1px solid var(--border); }
+.sim-rev:last-child { border-bottom: 0; }
+@media (max-width: 600px) { .sim-opts.tf { grid-template-columns: 1fr; } .sim-card { padding: 16px; } }

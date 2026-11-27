@@ -10,6 +10,7 @@ import { runForDisplay } from './sqlcheck.js';
 import { getDB } from './db.js';
 import { initDock } from './dock.js';
 import { pageExport } from './export.js';
+import { pageSimulado } from './simulado.js';
 
 const app = document.getElementById('app');
 const EXAM = new Date('2026-11-27T08:00:00-03:00');
@@ -151,6 +152,10 @@ function pageHome() {
       h('dt', {}, 'Material'), h('dd', {}, 'Caneta, lápis e borracha')),
     h('p', { class: 'note' }, 'A prova é no papel. Treine também desenhar o ER à mão e escrever SQL sem executar.'));
 
+  const simPanel = h('section', { class: 'panel' }, h('h2', { class: 'panel-title' }, 'Simulado de sintaxe SQL'),
+    h('p', { class: 'muted small' }, 'Questões rápidas de DDL, DML, visões e triggers, sem SELECT de consulta. Complete a lacuna, escolha a alternativa ou diga se o comando dá erro.'),
+    h('a', { class: 'btn primary small', href: '#/simulado' }, 'Fazer simulado'));
+
   const exportPanel = h('section', { class: 'panel' }, h('h2', { class: 'panel-title' }, 'Suas respostas'),
     h('p', { class: 'muted small' }, 'Gere um PDF com tudo o que você respondeu, com ou sem gabarito.'),
     h('a', { class: 'btn secondary small', href: '#/respostas' }, 'Exportar respostas em PDF'));
@@ -161,7 +166,7 @@ function pageHome() {
         .map(([k, d]) => h('tr', {}, h('td', {}, k.split(' ').map((x) => h('kbd', {}, x))), h('td', {}, d))))));
 
   app.append(pageHead('Curso 09913', 'Banco de Dados I — preparação para a VF', 'Modelo ER, modelo relacional, mapeamento, álgebra relacional, SQL (DDL e DML) e triggers, com PostgreSQL rodando no navegador.'),
-    h('div', { class: 'dash' }, h('div', { class: 'dash-main' }, cont, mods), h('aside', { class: 'dash-side' }, exam, bossPanel, exportPanel, keys)));
+    h('div', { class: 'dash' }, h('div', { class: 'dash-main' }, cont, mods), h('aside', { class: 'dash-side' }, exam, simPanel, bossPanel, exportPanel, keys)));
 }
 
 function pageTrail(focusWorld) {
@@ -384,6 +389,7 @@ function searchItems() {
     ...BOSSES.flatMap((b) => b.phases.map((p, i) => ({ kind: 'Projeto', id: `P${b.n}.${i + 1}`, title: `${b.title} — ${p.title}`, href: `#/boss/${b.id}/${i}` }))),
     { kind: 'Ferramenta', id: '', title: 'Playground (SQL, álgebra, ER livre)', href: '#/playground' },
     { kind: 'Ferramenta', id: '', title: 'Exportar respostas em PDF', href: '#/respostas' },
+    { kind: 'Ferramenta', id: '', title: 'Simulado de sintaxe SQL (DDL, DML, visões, triggers)', href: '#/simulado' },
   ];
 }
 
@@ -391,7 +397,7 @@ function searchItems() {
 function route() {
   const parts = (location.hash.replace(/^#\/?/, '') || '').split('/').map(decodeURIComponent);
   app.innerHTML = '';
-  const nav = { '': 'home', trilha: 'trilha', nivel: 'trilha', teoria: 'teoria', boss: 'boss', playground: 'playground' }[parts[0]] || 'home';
+  const nav = { '': 'home', trilha: 'trilha', nivel: 'trilha', teoria: 'teoria', boss: 'boss', playground: 'playground', simulado: 'simulado' }[parts[0]] || 'home';
   document.querySelectorAll('[data-nav]').forEach((a) => a.classList.toggle('active', a.dataset.nav === nav));
   try {
     switch (parts[0]) {
@@ -401,6 +407,7 @@ function route() {
       case 'boss': parts[1] ? pageBoss(parts[1], parts[2]) : pageBossList(); break;
       case 'playground': pagePlayground(); break;
       case 'respostas': pageExport(app); break;
+      case 'simulado': pageSimulado(app); break;
       default: pageHome();
     }
   } catch (e) {
