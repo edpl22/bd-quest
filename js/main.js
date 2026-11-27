@@ -9,6 +9,7 @@ import { DB_INFO } from './data/seeds.js';
 import { runForDisplay } from './sqlcheck.js';
 import { getDB } from './db.js';
 import { initDock } from './dock.js';
+import { pageExport } from './export.js';
 
 const app = document.getElementById('app');
 const EXAM = new Date('2026-11-27T08:00:00-03:00');
@@ -150,13 +151,17 @@ function pageHome() {
       h('dt', {}, 'Material'), h('dd', {}, 'Caneta, lápis e borracha')),
     h('p', { class: 'note' }, 'A prova é no papel. Treine também desenhar o ER à mão e escrever SQL sem executar.'));
 
+  const exportPanel = h('section', { class: 'panel' }, h('h2', { class: 'panel-title' }, 'Suas respostas'),
+    h('p', { class: 'muted small' }, 'Gere um PDF com tudo o que você respondeu, com ou sem gabarito.'),
+    h('a', { class: 'btn secondary small', href: '#/respostas' }, 'Exportar respostas em PDF'));
+
   const keys = h('section', { class: 'panel' }, h('h2', { class: 'panel-title' }, 'Atalhos'),
     h('table', { class: 'keys' }, h('tbody', {},
       [['Ctrl K', 'Buscar desafio ou teoria'], ['Ctrl Enter', 'Executar código'], ['Ctrl Shift Enter', 'Enviar SQL para correção'], ['Del / Ctrl Z', 'Apagar / desfazer no editor ER'], ['Esc', 'Fechar painéis']]
         .map(([k, d]) => h('tr', {}, h('td', {}, k.split(' ').map((x) => h('kbd', {}, x))), h('td', {}, d))))));
 
   app.append(pageHead('Curso 09913', 'Banco de Dados I — preparação para a VF', 'Modelo ER, modelo relacional, mapeamento, álgebra relacional, SQL (DDL e DML) e triggers, com PostgreSQL rodando no navegador.'),
-    h('div', { class: 'dash' }, h('div', { class: 'dash-main' }, cont, mods), h('aside', { class: 'dash-side' }, exam, bossPanel, keys)));
+    h('div', { class: 'dash' }, h('div', { class: 'dash-main' }, cont, mods), h('aside', { class: 'dash-side' }, exam, bossPanel, exportPanel, keys)));
 }
 
 function pageTrail(focusWorld) {
@@ -189,7 +194,7 @@ function pageTrail(focusWorld) {
     if (!listWrap.children.length) listWrap.append(h('p', { class: 'muted' }, 'Nenhum desafio com esses filtros.'));
   };
   typeSel.onchange = draw; statusSel.onchange = draw;
-  app.append(pageHead('Trilha', 'Desafios', 'Organizados pelos assuntos da FOE, do mais simples ao mais difícil em cada módulo.', h('div', { class: 'filters' }, typeSel, statusSel)), listWrap);
+  app.append(pageHead('Trilha', 'Desafios', 'Organizados pelos assuntos da FOE, do mais simples ao mais difícil em cada módulo.', h('div', { class: 'filters' }, typeSel, statusSel, h('a', { class: 'btn ghost small', href: '#/respostas' }, 'Exportar respostas (PDF)'))), listWrap);
   draw();
   if (focusWorld) setTimeout(() => document.getElementById('mod-' + focusWorld)?.scrollIntoView({ block: 'start' }), 0);
 }
@@ -378,6 +383,7 @@ function searchItems() {
     ...CHAPTERS.map((c) => ({ kind: 'Teoria', id: 'Cap. ' + c.num, title: c.title, sub: c.foe, href: '#/teoria/' + c.id })),
     ...BOSSES.flatMap((b) => b.phases.map((p, i) => ({ kind: 'Projeto', id: `P${b.n}.${i + 1}`, title: `${b.title} — ${p.title}`, href: `#/boss/${b.id}/${i}` }))),
     { kind: 'Ferramenta', id: '', title: 'Playground (SQL, álgebra, ER livre)', href: '#/playground' },
+    { kind: 'Ferramenta', id: '', title: 'Exportar respostas em PDF', href: '#/respostas' },
   ];
 }
 
@@ -394,6 +400,7 @@ function route() {
       case 'teoria': pageTheory(parts[1]); break;
       case 'boss': parts[1] ? pageBoss(parts[1], parts[2]) : pageBossList(); break;
       case 'playground': pagePlayground(); break;
+      case 'respostas': pageExport(app); break;
       default: pageHome();
     }
   } catch (e) {

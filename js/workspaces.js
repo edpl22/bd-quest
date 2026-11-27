@@ -50,15 +50,16 @@ function revealBlock(label, build) {
 // ---------- quiz ----------
 export function quizWorkspace(level, onPass) {
   const root = h('div', { class: 'quiz' });
-  const answers = {};
+  const qkey = 'quiz:' + level.id;
+  const answers = store.get(qkey, {}) || {};
   const qs = level.questions;
   qs.forEach((q, qi) => {
     const qd = h('fieldset', { class: 'quiz-q' });
     qd.append(h('legend', {}, h('span', { class: 'qnum' }, `Questão ${qi + 1} de ${qs.length}`)), h('div', { class: 'qtext', html: q.q }));
     q.opts.forEach((o, oi) => {
-      const inp = h('input', { type: 'radio', name: `${level.id}-q${qi}`, value: oi });
+      const inp = h('input', { type: 'radio', name: `${level.id}-q${qi}`, value: oi, checked: answers[qi] === oi });
       const lab = h('label', { class: 'quiz-opt' }, inp, h('span', { class: 'opt-letter' }, 'ABCDE'[oi]), h('span', { html: o }));
-      inp.onchange = () => { answers[qi] = oi; };
+      inp.onchange = () => { answers[qi] = oi; store.set(qkey, answers); };
       qd.append(lab);
     });
     qd.append(h('div', { class: 'quiz-exp', html: q.exp || '' }));

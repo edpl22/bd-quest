@@ -565,3 +565,43 @@ body.scare-shake { animation: scare-shake .08s linear infinite; }
 @media (prefers-reduced-motion: reduce) {
   .scare, .scare-face, .scare .ns-eye, body.scare-shake { animation: none; }
 }
+
+/* ---------- exportar respostas (PDF) ---------- */
+.export-controls { margin-bottom: 20px; }
+.export-opts { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 8px 20px; margin-bottom: 12px; }
+.export-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.report { background: var(--layer); border: 1px solid var(--border); padding: 28px 32px; }
+.rep-head h1 { margin: 0 0 4px; }
+.rep-head { border-bottom: 2px solid var(--text); padding-bottom: 10px; margin-bottom: 8px; }
+.rep-group { font-size: 1.05rem; margin: 28px 0 8px; padding-bottom: 4px; border-bottom: 1px solid var(--border-strong); }
+.rep-item { padding: 12px 0 14px; border-bottom: 1px solid var(--border); }
+.rep-item:last-child { border-bottom: 0; }
+.rep-title { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+.rep-id { font-family: var(--mono); font-size: .8rem; color: var(--text-3); }
+.rep-name { font-weight: 600; }
+.rep-meta { margin-left: auto; font-size: .78rem; color: var(--text-3); }
+.rep-intro { font-size: .85rem; color: var(--text-2); margin: 6px 0; }
+.rep-intro p { margin: .3em 0; }
+.rep-label { font-size: .72rem; text-transform: uppercase; letter-spacing: .5px; color: var(--text-3); margin: 10px 0 2px; }
+.rep-code { margin: 2px 0; white-space: pre-wrap; word-break: break-word; font-size: .8rem; }
+.rep-svg svg { max-width: 100%; height: auto; }
+.rep-quiz { margin: 4px 0; padding-left: 22px; font-size: .85rem; }
+.rep-quiz li { margin: 6px 0; }
+.rep-a { color: var(--text-2); margin-top: 2px; }
+.rep-a.ok { color: var(--ok); }
+.rep-a.err { color: var(--err); }
+.report .ra-paper { margin: 4px 0; }
+
+@media print {
+  @page { size: A4; margin: 14mm 12mm; }
+  body { background: #fff !important; }
+  body > *:not(#app) { display: none !important; }
+  #app { padding: 0 !important; margin: 0 !important; max-width: none !important; }
+  .no-print { display: none !important; }
+  .report { border: 0; padding: 0; background: #fff; }
+  .rep-group { break-after: avoid; }
+  .rep-title, .rep-label { break-after: avoid; }
+  .rep-code, .rep-svg, .rep-quiz li, .ra-paper { break-inside: avoid; }
+  .rep-code { border-color: #c6c6c6; }
+  a { color: inherit; }
+}
